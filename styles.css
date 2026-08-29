@@ -51,6 +51,24 @@ body{
 .identity-icon{font-size:13px}
 .updated-label{font-size:10px;color:var(--muted);margin-top:5px;text-align:center}
 
+/* ── AVISO DE ACTUALIZACIÓN DISPONIBLE ───────────────────────
+   Se muestra cuando el Service Worker detecta una versión nueva ya publicada — ver el bloque de
+   registro de sw.js al final de app.js. "Actualizar" solo hace un reload: el SW nuevo ya está
+   activo en segundo plano (skipWaiting+clients.claim), el reload es lo que hace que la página
+   cargue el HTML/JS/CSS nuevos en vez de los que ya estaban en memoria. */
+.update-banner{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;
+  background:var(--coral);color:#1b120b;
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;
+  font:700 12.5px var(--sans);text-align:center;
+}
+.update-banner button{
+  flex-shrink:0;height:28px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(27,18,11,.35);
+  background:#1b120b;color:#fff;font:700 11.5px var(--sans);cursor:pointer;
+}
+.update-banner button:active{transform:scale(.96)}
+
 /* ── THEME TOGGLE (mismo componente que el panel de gestión) ──── */
 .theme-toggle{display:flex;gap:3px;background:var(--ink);border:1px solid var(--line);border-radius:var(--radius-pill);padding:3px;width:fit-content;flex-shrink:0}
 .theme-btn{width:26px;height:26px;border:0;border-radius:var(--radius-pill);background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center;transition:.2s}

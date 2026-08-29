@@ -923,8 +923,26 @@ qa('.drawer-item[data-drawer-scope]').forEach(btn=>btn.addEventListener('click',
 }));
 $('drawerAjustes').addEventListener('click',()=>{closeDrawer();openIdentityModal('change')});
 
+// Detecta cuando hay una versión nueva del sitio ya publicada (el SW la baja solo en segundo
+// plano) y muestra el cartel de "Actualizar" en vez de dejar la actualización pasar calladita.
+// navigator.serviceWorker.controller existe únicamente si esta pestaña YA estaba controlada por
+// un SW anterior — así el cartel no aparece en la primera visita (ahí no hay "versión anterior"
+// de la que avisar, solo se está instalando por primera vez).
 if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      reg.addEventListener('updatefound',()=>{
+        const newWorker=reg.installing;
+        if(!newWorker)return;
+        newWorker.addEventListener('statechange',()=>{
+          if(newWorker.state==='installed'&&navigator.serviceWorker.controller){
+            $('updateBanner').hidden=false;
+          }
+        });
+      });
+    }).catch(()=>{});
+  });
+  $('updateBannerBtn').addEventListener('click',()=>location.reload());
 }
 
 renderIdentityChip();
