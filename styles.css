@@ -1,0 +1,403 @@
+/* ── TOKENS (mismos que el dashboard de gestión) ────────────── */
+:root{
+  --ink:#0B1220;--card:#1E293B;--line:#243447;--coral:#F97316;--mint:#34D399;--red:#F87171;
+  --amber:#FBBF24;--muted:#94A3B8;--white:#F8FAFC;--soft:#CBD5E1;
+  --sans:'DM Sans',sans-serif;--display:'Space Grotesk',sans-serif;
+  --radius:16px;--radius-sm:10px;--radius-pill:999px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ink);color:var(--white);font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;min-height:100vh;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.wrap{max-width:640px;margin:0 auto;padding:0 0 40px}
+
+/* ── TOPBAR ──────────────────────────────────────────────── */
+.topbar{
+  position:sticky;top:0;z-index:10;background:rgba(11,18,32,.92);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top) + 9px) 16px 8px;
+}
+.topbar-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.brand{display:flex;align-items:center;gap:8px;min-width:0}
+.brand-logo{display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.brand-logo img{display:block;height:24px;width:auto}
+.brand-logo .logo-dark{display:none}
+.brand-text h1{font:700 14px var(--display);margin:0;letter-spacing:.2px}
+.brand-text span{display:block;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+.refresh-btn{width:30px;height:30px;border-radius:var(--radius-pill);border:1px solid var(--line);background:var(--card);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.refresh-btn:active{transform:scale(.92)}
+.refresh-btn.spin svg{animation:spin .7s linear}
+@keyframes spin{to{transform:rotate(360deg)}}
+.local-select{
+  width:100%;height:36px;border-radius:var(--radius-sm);border:1px solid var(--line);
+  background:var(--card);color:var(--white);font:600 12.5px var(--sans);padding:0 12px;
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394A3B8'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;
+}
+.auth-row{display:flex;gap:8px;margin-top:6px}
+.identity-chip,.supervisor-chip{
+  flex:1;min-width:0;height:30px;border-radius:var(--radius-sm);border:1px solid var(--line);
+  background:var(--card);color:var(--soft);font:600 11.5px var(--sans);display:flex;align-items:center;
+  justify-content:center;gap:6px;cursor:pointer;
+}
+.identity-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.identity-chip.identified{border-color:var(--mint);color:var(--white)}
+.supervisor-chip.active{border-color:var(--amber);color:var(--amber)}
+.identity-chip:active,.supervisor-chip:active{transform:scale(.98)}
+.identity-icon{font-size:13px}
+.updated-label{font-size:10px;color:var(--muted);margin-top:5px;text-align:center}
+
+/* ── THEME TOGGLE (mismo componente que el panel de gestión) ──── */
+.theme-toggle{display:flex;gap:3px;background:var(--ink);border:1px solid var(--line);border-radius:var(--radius-pill);padding:3px;width:fit-content;flex-shrink:0}
+.theme-btn{width:26px;height:26px;border:0;border-radius:var(--radius-pill);background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center;transition:.2s}
+.theme-btn svg{width:14px;height:14px}
+.theme-btn:hover{color:var(--white)}
+.theme-btn[aria-pressed="true"]{background:var(--coral);color:#1b120b;box-shadow:0 6px 14px -6px rgba(249,115,22,.55)}
+.drawer-theme-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;gap:10px}
+.drawer-item-label{display:flex;align-items:center;gap:14px;color:var(--white);font:600 14px var(--sans)}
+
+/* ── BANNER DE MODO SUPERVISIÓN ──────────────────────────────── */
+.supervisor-badge{
+  margin:8px 16px 0;padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--amber);
+  background:rgba(251,191,36,.12);color:var(--amber);font:600 11px var(--sans);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+.supervisor-badge button{
+  flex-shrink:0;height:24px;padding:0 10px;border-radius:var(--radius-pill);border:1px solid var(--amber);
+  background:transparent;color:var(--amber);font:600 10.5px var(--sans);cursor:pointer;
+}
+
+/* ── TABS ────────────────────────────────────────────────── */
+/* width:100% (no solo max-width) es necesario acá: un flex container con overflow-x:auto calcula
+   su propio ancho por "shrink-to-fit" — sin esto, la fila de tabs se ensancha para acomodar TODOS
+   los botones (flex:none no encogen) en vez de quedarse en el ancho del padre y scrollear puertas
+   adentro. Confirmado con getBoundingClientRect(): sin este fix, el <body> entero medía 504px en
+   un viewport de 390px porque una fila de tabs empujaba a toda la página. */
+.tabs{display:flex;width:100%;gap:6px;overflow-x:auto;padding:8px 16px 0;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  flex:none;height:27px;padding:0 12px;border:1px solid var(--line);border-radius:var(--radius-pill);
+  background:var(--card);color:var(--muted);font:600 11.5px var(--sans);white-space:nowrap;
+}
+.tab.active{background:var(--coral);border-color:var(--coral);color:#1b120b}
+.scope-tabs{padding-top:8px}
+.cat-tabs{padding-top:6px}
+
+/* ── BOTTOM NAV + DRAWER (mobile < 768px, estilo Tiendanube) ──
+   scopeTabs (arriba) sigue existiendo para desktop tal cual — acá solo se define la barra inferior
+   y el drawer; qué se ve y qué no según ancho vive en el @media al final del archivo. */
+.bottom-nav{
+  display:none;position:fixed;left:0;right:0;bottom:0;z-index:25;
+  grid-template-columns:repeat(4,1fr);background:var(--card);
+  border-top:1px solid var(--line);padding:6px 4px calc(env(safe-area-inset-bottom) + 4px);
+}
+.bottom-nav-item{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  background:none;border:none;color:var(--muted);font:600 9.5px var(--sans);padding:7px 2px;
+  border-radius:var(--radius-sm);cursor:pointer;touch-action:manipulation;
+}
+.bottom-nav-icon{width:20px;height:20px;flex-shrink:0}
+.bottom-nav-item.active{color:var(--coral)}
+.bottom-nav-item:active{transform:scale(.94)}
+
+.drawer-backdrop{position:fixed;inset:0;z-index:30;background:rgba(4,8,16,.6);backdrop-filter:blur(2px)}
+.drawer-panel{
+  position:fixed;top:0;right:0;bottom:0;z-index:31;width:min(84vw,340px);
+  background:var(--card);border-left:1px solid var(--line);
+  display:flex;flex-direction:column;
+  transform:translateX(0);box-shadow:-14px 0 40px rgba(0,0,0,.4);
+}
+.drawer-head{
+  display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top) + 16px) 16px 14px;
+  border-bottom:1px solid var(--line);font:700 14px var(--display);flex-shrink:0;
+}
+/* 40px (no 30px) + touch-action:manipulation: el tamaño chico anterior quedaba justo en el límite
+   de un tap cómodo — un toque apenas desviado del centro no conectaba y se sentía "no responde al
+   primer toque"; touch-action sacaba además el delay de ~300ms que algunos navegadores móviles
+   agregan por default a los elementos clickeables. */
+.drawer-close{
+  width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:transparent;
+  color:var(--muted);font-size:20px;cursor:pointer;touch-action:manipulation;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.drawer-close:active{background:var(--ink);color:var(--white)}
+.drawer-body{overflow-y:auto;padding:10px 10px calc(env(safe-area-inset-bottom) + 20px);flex:1}
+.drawer-group{margin-bottom:18px}
+.drawer-group-title{display:block;padding:6px 10px 6px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--coral);font-weight:700}
+.drawer-item{
+  width:100%;min-height:50px;display:flex;align-items:center;gap:14px;text-align:left;
+  padding:13px 12px;border:none;border-radius:var(--radius-sm);background:transparent;color:var(--white);
+  font:600 14px var(--sans);cursor:pointer;touch-action:manipulation;
+}
+.drawer-item:active{background:var(--ink)}
+.drawer-icon{width:21px;height:21px;flex-shrink:0;color:var(--muted)}
+.drawer-item:active .drawer-icon{color:var(--coral)}
+
+/* ── ÍCONOS SVG (barrido total de emojis) ─────────────────────
+   .svg-icon es la utilidad compartida: 1em de ancho/alto hace que el ícono escale con el
+   font-size de SU PROPIO elemento — el mismo truco que ya usaba .home-card-icon/.home-cta-icon
+   a mano, generalizado. Así una sola clase sirve tanto para la medalla que necesita 3 tamaños
+   distintos (15px en una fila normal, 20px en el podio top1/2/3, 26-34px en Salón de la Fama,
+   16px en las tarjetas de local) como para un ícono de 20px en Reglamento — cada contexto ya
+   define su propio font-size (.rank-medal-pos, .fama-medal, .reglas-icon, etc.), .svg-icon solo
+   dice "ocupá 1em" en vez de repetir un tamaño en píxeles por cada lugar. */
+.svg-icon{width:1em;height:1em;display:inline-block;vertical-align:-.125em;flex-shrink:0}
+/* Separación cuando el ícono va PEGADO antes de texto corrido (sin gap de flex de por medio,
+   a diferencia de identity-icon/bottom-nav-icon/reglas-icon que sí viven dentro de un flex con
+   gap propio y no necesitan esto). */
+.text-icon{margin-right:5px}
+.tab-icon{margin-right:5px}
+.reglas-title-icon{margin-right:7px;color:var(--coral)}
+.trophy-icon{color:var(--coral)}
+/* Medallas: color por posición en vez del tono propio que traía el emoji 🥇🥈🥉 — sin esto las
+   3 se verían idénticas (heredarían el gris de .rank-medal-pos/.fama-medal). */
+.medal-gold{color:var(--amber)}
+.medal-silver{color:var(--soft)}
+.medal-bronze{color:#D08A52}
+
+/* ── INICIO / PULSO GENERAL ───────────────────────────────── */
+.home-wrap{display:flex;flex-direction:column;gap:12px;padding:2px 16px 0}
+.home-hero{background:var(--card);border:1px solid var(--coral);border-radius:var(--radius);padding:18px;box-shadow:0 0 20px rgba(255,107,0,.18)}
+.home-hero-label{display:block;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.home-hero-value{font:700 30px var(--display);margin:6px 0 3px}
+.home-hero-sub{font-size:12px;color:var(--soft)}
+.home-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.home-card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;
+  display:flex;flex-direction:column;gap:3px;text-align:left;cursor:pointer;
+}
+.home-card:active{border-color:var(--coral)}
+.home-card-label{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.home-card-icon{width:13px;height:13px;flex-shrink:0;color:var(--muted)}
+.home-card-name{font:700 15px var(--display);color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.home-card-sub{font-size:11px;color:var(--coral)}
+.home-cta{
+  background:var(--ink);border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px;
+  color:var(--soft);font:700 12.5px var(--sans);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.home-cta-icon{width:15px;height:15px;flex-shrink:0;color:var(--coral)}
+
+/* Top 3 de Inicio para vendedores sin PIN de Supervisión — mismo lenguaje visual que .home-card
+   pero sin ningún valor numérico ($/%), solo puesto (medalla) + nombre + local. */
+.home-top3-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;cursor:pointer}
+.home-top3-card:active{border-color:var(--coral)}
+.home-top3-title{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px}
+.home-top3-row{display:flex;align-items:center;gap:11px;padding:8px 0;border-top:1px solid var(--line)}
+.home-top3-row:first-of-type{border-top:0;padding-top:2px}
+.home-top3-pos{flex-shrink:0;width:20px;display:flex;align-items:center;justify-content:center}
+.home-top3-pos .svg-icon{width:18px;height:18px}
+.home-top3-info{display:flex;flex-direction:column;gap:1px;min-width:0}
+.home-top3-name{font:700 14px var(--display);color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.home-top3-sub{font-size:11px;color:var(--muted)}
+.home-top3-empty{color:var(--muted);font-size:12px;padding:6px 0}
+
+/* ── LISTA DE RANKING ────────────────────────────────────── */
+.rank-header{padding:10px 16px 2px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.rank-kicker{display:block;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--coral);font-weight:700;margin-bottom:1px;min-height:11px}
+.rank-kicker::before{content:"// "}
+.rank-header h2{margin:0;font:700 15px var(--display)}
+.rank-header span{font-size:10.5px;color:var(--muted)}
+.rank-list{padding:6px 16px 0;display:flex;flex-direction:column;gap:7px}
+.rank-row{
+  display:grid;grid-template-columns:30px 1fr auto;align-items:center;gap:10px;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 12px;
+}
+.rank-row.top1{border-color:var(--coral);background:linear-gradient(180deg,rgba(249,115,22,.16),var(--card) 60%);box-shadow:0 0 15px rgba(255,107,0,.25)}
+.rank-medal-pos{font:700 15px var(--display);text-align:center;color:var(--muted)}
+.rank-row.top1 .rank-medal-pos,.rank-row.top2 .rank-medal-pos,.rank-row.top3 .rank-medal-pos{font-size:20px}
+.rank-info{overflow:hidden}
+.rank-name{font-weight:700;font-size:13.5px;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank-local{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank-extra{font-size:9.5px;color:var(--amber);margin-top:2px;white-space:normal;line-height:1.4}
+.rank-metric{text-align:right}
+.rank-value{font:700 14px var(--display);white-space:nowrap}
+.rank-sub{font-size:10.5px;color:var(--muted);white-space:nowrap}
+.sprint-badge{display:inline-block;margin-top:3px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(249,115,22,.16);border:1px solid rgba(249,115,22,.35);color:var(--coral);font:700 10px var(--sans);white-space:nowrap}
+.positive{color:var(--mint)}
+.negative{color:var(--red)}
+.trend{font-size:11px;margin-left:4px}
+
+.state-msg{margin:40px 16px;padding:24px;text-align:center;color:var(--muted);font-size:13px;background:var(--card);border:1px dashed var(--line);border-radius:var(--radius)}
+.state-msg strong{display:block;color:var(--white);font-size:14px;margin-bottom:4px}
+
+.footer-note{text-align:center;color:var(--muted);font-size:10px;padding:20px 16px 0}
+
+/* ── VALOR POR % DE CUMPLIMIENTO (dato principal + contexto) ─ */
+.rank-value-main{font:700 14px var(--display)}
+.rank-value-ctx{font-size:10.5px;color:var(--muted);font-weight:500}
+
+/* ── TARJETA PRIVADA (fija al pie, del usuario identificado) ─ */
+body.has-private-card{padding-bottom:96px}
+.private-card{
+  position:fixed;left:0;right:0;bottom:0;z-index:20;
+  padding:0 12px calc(env(safe-area-inset-bottom) + 12px);
+}
+.private-card-inner{
+  max-width:640px;margin:0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;
+  background:linear-gradient(180deg,rgba(249,115,22,.14),var(--card) 55%);
+  border:1px solid var(--coral);border-radius:var(--radius);padding:11px 14px;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+}
+.private-pos{text-align:center;line-height:1.1}
+.private-pos-num{display:block;font:700 20px var(--display);color:var(--coral)}
+.private-pos-total{display:block;font-size:9.5px;color:var(--muted)}
+.private-info{overflow:hidden}
+.private-name{font-weight:700;font-size:13px;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.private-progress{font-size:11px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.private-micro{font-size:10.5px;color:var(--mint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.private-change{
+  flex-shrink:0;height:28px;padding:0 10px;border-radius:var(--radius-pill);border:1px solid var(--line);
+  background:var(--card);color:var(--muted);font:600 10.5px var(--sans);cursor:pointer;
+}
+.private-change:active{transform:scale(.94)}
+
+/* ── MODAL DE IDENTIDAD (selector Local → Vendedor) ─────────── */
+.identity-modal{
+  position:fixed;inset:0;z-index:30;background:rgba(4,8,16,.72);backdrop-filter:blur(3px);
+  display:flex;align-items:flex-end;justify-content:center;
+}
+.identity-card{
+  position:relative;width:100%;max-width:480px;background:var(--card);border:1px solid var(--line);
+  border-radius:20px 20px 0 0;padding:26px 20px calc(env(safe-area-inset-bottom) + 22px);
+}
+.identity-close{
+  position:absolute;top:14px;right:14px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);
+  background:transparent;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;
+}
+.identity-card h2{margin:0 0 6px;font:700 19px var(--display)}
+.identity-sub{margin:0 0 18px;font-size:12.5px;color:var(--muted);line-height:1.4}
+.identity-label{display:block;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:0 0 6px}
+.identity-select{
+  width:100%;height:46px;border-radius:var(--radius-sm);border:1px solid var(--line);
+  background:var(--ink);color:var(--white);font:600 14px var(--sans);padding:0 12px;margin-bottom:16px;
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394A3B8'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;
+}
+.identity-select:disabled{opacity:.5}
+input.identity-select{background-image:none;letter-spacing:4px}
+.pin-error{margin:-10px 0 14px;font-size:11.5px;color:var(--red)}
+.identity-actions{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.identity-confirm{
+  height:46px;border-radius:var(--radius-sm);border:none;background:var(--coral);color:#1b120b;
+  font:700 14px var(--sans);cursor:pointer;
+}
+.identity-confirm:disabled{opacity:.4;cursor:not-allowed}
+.identity-skip{
+  height:40px;border-radius:var(--radius-sm);border:1px solid var(--line);background:transparent;
+  color:var(--muted);font:600 12.5px var(--sans);cursor:pointer;
+}
+
+/* ── REGLAMENTO GP ────────────────────────────────────────────── */
+.reglas-panel{padding:16px 16px 8px;display:flex;flex-direction:column;gap:14px}
+.reglas-intro h2{margin:0 0 4px;font:700 19px var(--display)}
+.reglas-intro p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.4}
+.reglas-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.reglas-card-head{display:flex;gap:10px;align-items:flex-start}
+.reglas-icon{font-size:20px;line-height:1;color:var(--coral)}
+.reglas-card-head h3{margin:0 0 3px;font:700 14px var(--display)}
+.reglas-card-head p{margin:0;font-size:12px;color:var(--soft);line-height:1.4}
+.reglas-points{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.reglas-point{flex:1 1 52px;min-width:52px;text-align:center;background:var(--ink);border:1px solid var(--line);border-radius:var(--radius-sm);padding:7px 4px}
+.reglas-point.top{border-color:var(--coral);background:linear-gradient(180deg,rgba(249,115,22,.14),var(--ink) 70%)}
+.reglas-point .pos{display:block;font:700 12px var(--display);color:var(--muted)}
+.reglas-point.top .pos{color:var(--coral)}
+.reglas-point .pts{display:block;font:700 14px var(--display);color:var(--white);margin-top:2px}
+.reglas-note{margin:10px 0 0;font-size:10.5px;color:var(--muted)}
+.reglas-card-cash{border-color:var(--mint)}
+.reglas-intro-sanciones{margin-top:6px;padding-top:14px;border-top:1px solid var(--line)}
+.reglas-card-sanction{border-color:var(--line)}
+.reglas-card-danger{border-color:var(--red);background:linear-gradient(180deg,rgba(248,113,113,.1),var(--card) 70%)}
+.reglas-card-danger .reglas-icon{color:var(--red)}
+
+/* ── SALÓN DE LA FAMA (podio semana cerrada) ─────────────────
+   Mobile (default): 1° arriba a todo el ancho, 2°/3° lado a lado abajo. Desktop reordena a un
+   podio clásico en una fila (ver @media min-width:1024px más abajo). */
+.fama-podium{display:flex;flex-direction:column;gap:8px;margin:6px 16px 0}
+.fama-podium-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fama-podium-card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px 14px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;
+}
+.fama-podium-card.pos1{border-color:var(--coral);background:linear-gradient(180deg,rgba(249,115,22,.18),var(--card) 65%);box-shadow:0 0 20px rgba(255,107,0,.22);padding:22px 14px}
+.fama-podium-card.pos2{border-color:#C0C8D4}
+.fama-podium-card.pos3{border-color:#B08D57}
+.fama-podium-empty{color:var(--muted);opacity:.6}
+.fama-empty-text{font-size:11px}
+.fama-medal{font-size:26px;line-height:1}
+.pos1 .fama-medal{font-size:34px}
+.fama-avatar{
+  width:44px;height:44px;border-radius:50%;background:var(--ink);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font:700 15px var(--display);color:var(--soft);
+  margin:2px 0;
+}
+.pos1 .fama-avatar{width:56px;height:56px;font-size:19px;border-color:var(--coral);color:var(--white)}
+.fama-podium-name{font-weight:700;font-size:13px;color:var(--white);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fama-podium-sub{font-size:10.5px;color:var(--muted)}
+.fama-podium-metric{font:700 16px var(--display);color:var(--coral);margin-top:2px}
+.fama-section-title{margin:18px 16px 0;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--coral);font-weight:700}
+.fama-store-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 16px 0}
+.fama-store-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
+.fama-medal-sm{font-size:16px;line-height:1}
+.fama-store-name{font-weight:700;font-size:11px;color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fama-store-metric{font:700 13px var(--display);color:var(--coral)}
+.fama-store-vendors{font-size:9px;color:var(--muted)}
+.fama-highlight-grid{display:grid;grid-template-columns:1fr;gap:8px;margin:8px 16px 0}
+.fama-highlight-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px}
+.fama-highlight-title{display:block;font-size:11px;font-weight:700;color:var(--soft);margin-bottom:4px}
+.fama-highlight-name{display:block;font-weight:700;font-size:13.5px;color:var(--white)}
+.fama-highlight-sub{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+.fama-highlight-empty{font-size:11.5px;color:var(--muted)}
+.fama-highlight-dual{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--soft)}
+
+/* ── DESKTOP (≥1024px) ────────────────────────────────────────
+   Hasta acá la app no tenía NINGÚN breakpoint de ancho — .wrap quedaba fijo en 640px sin importar
+   la pantalla, así que en desktop se veía como una columna angosta centrada con el resto de la
+   pantalla vacío. Esto la habilita como vista de sala/reunión: más ancho real, ranking en grilla
+   de 2 columnas, podio del Salón de la Fama como banner horizontal clásico (1° al medio y más alto). */
+@media(min-width:1024px){
+  .wrap{max-width:1120px;padding:0 24px 48px}
+  .topbar{padding-left:24px;padding-right:24px}
+  .topbar-row{max-width:1120px;margin:0 auto;width:100%}
+  .auth-row,.local-select{max-width:1120px;margin-left:auto;margin-right:auto}
+  .rank-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px 14px;padding:6px 24px 0}
+  .rank-list .rank-row.top1{grid-column:1/-1}
+  .reglas-panel{padding:16px 24px 8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;align-items:start}
+  .reglas-intro,.reglas-intro-sanciones{grid-column:1/-1}
+  .fama-section-title,.fama-podium{margin-left:24px;margin-right:24px}
+  .fama-store-row,.fama-highlight-grid{margin-left:24px;margin-right:24px}
+  .fama-highlight-grid{grid-template-columns:repeat(3,1fr)}
+  /* Podio clásico: 2° y 3° pasan a ser hijos directos de la grilla (display:contents) para poder
+     reordenar con 1° en el medio y un poco más alto — el look de "banner" pedido para proyectar. */
+  .fama-podium{display:grid;grid-template-columns:1fr 1.18fr 1fr;align-items:end;gap:14px}
+  .fama-podium-row{display:contents}
+  .fama-podium-card.pos1{order:2}
+  .fama-podium-card.pos2{order:1}
+  .fama-podium-card.pos3{order:3}
+  .private-card-inner{max-width:1120px}
+}
+
+/* ── MOBILE < 768px: bottom nav + drawer reemplazan el scope-tabs de arriba ─
+   catTabs/storeCatTabs (el segundo nivel — Liga VDH/GP VDH/Ticket/etc. DENTRO de una sección) se
+   mantienen con scroll horizontal: son filtros de una sola sección, un caso distinto del scope-tabs
+   de nivel superior que la barra inferior + drawer reemplazan acá. */
+@media(max-width:767px){
+  #scopeTabs{display:none}
+  .bottom-nav{display:grid}
+  body{padding-bottom:74px}
+  body.has-private-card{padding-bottom:166px}
+  .private-card{bottom:66px}
+}
+
+/* ── LIGHT MODE (elegido a mano con el toggle Tema, no automático) ─ */
+html[data-theme="light"]{
+  --ink:#E4E9F1;--card:#FFFFFF;--line:#C8D4E3;--muted:#4A5B70;--white:#0F1F33;--soft:#1E3552;
+}
+html[data-theme="light"] .topbar{background:rgba(228,233,241,.92)}
+html[data-theme="light"] .brand-logo .logo-light{display:none}
+html[data-theme="light"] .brand-logo .logo-dark{display:block}

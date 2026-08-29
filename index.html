@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>VDH · Ranking del equipo</title>
+<meta name="description" content="Ranking semanal en vivo de vendedores y locales VDH.">
+<meta name="theme-color" content="#0B1220">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VDH Ranking">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div class="topbar-row">
+        <div class="brand"><div class="brand-logo"><img class="logo-light" src="assets/vdh-logo.png" alt="VDH"><img class="logo-dark" src="assets/vdh-logo-dark.png" alt="VDH"></div><div class="brand-text"><h1>Ranking VDH</h1><span>Equipo de venta</span></div></div>
+        <button class="refresh-btn" id="refreshBtn" aria-label="Actualizar" title="Actualizar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+        </button>
+      </div>
+      <select id="localFilter" class="local-select"><option value="all">Todos los locales</option></select>
+      <div class="auth-row">
+        <button class="identity-chip" id="identityChip" type="button">
+          <svg class="svg-icon identity-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="identity-text" id="identityText">Identificarme</span>
+        </button>
+        <button class="supervisor-chip" id="supervisorChip" type="button">
+          <svg class="svg-icon identity-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span class="identity-text" id="supervisorText">Supervisión</span>
+        </button>
+      </div>
+      <div class="updated-label" id="updatedLabel">Conectando…</div>
+    </header>
+
+    <div class="supervisor-badge" id="supervisorBadge" hidden>
+      <span><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Modo supervisión · tabla completa, sin recorte</span>
+      <button id="supervisorExit" type="button">Salir</button>
+    </div>
+
+    <div class="tabs scope-tabs" id="scopeTabs" role="tablist" aria-label="Vista">
+      <button class="tab active" data-scope="home">Inicio</button>
+      <button class="tab" data-scope="sellers">Vendedores</button>
+      <button class="tab" data-scope="stores">Locales</button>
+      <button class="tab" data-scope="fama"><svg class="svg-icon tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>Salón de la Fama</button>
+      <button class="tab" data-scope="reglas">Reglamento GP</button>
+    </div>
+    <div class="tabs cat-tabs" id="catTabs" role="tablist" aria-label="Categoría">
+      <button class="tab active" data-category="liga">Liga VDH</button>
+      <button class="tab" data-category="campeonato">GP VDH</button>
+      <button class="tab" data-category="mejora">Mayor Mejora VDH</button>
+      <button class="tab" data-category="ticket">Ticket</button>
+      <button class="tab" data-category="perfumes">Perfumes</button>
+      <button class="tab" data-category="boxer">Boxer</button>
+      <button class="tab" data-category="pxt">PxT</button>
+    </div>
+    <div class="tabs cat-tabs" id="storeCatTabs" hidden role="tablist" aria-label="Categoría de Locales">
+      <button class="tab active" data-store-category="constructores">Copa Constructores</button>
+      <button class="tab" data-store-category="sprint">Sprint Semanal</button>
+      <button class="tab" data-store-category="ticket">Ticket Promedio</button>
+      <button class="tab" data-store-category="pxt">PxT</button>
+      <button class="tab" data-store-category="perfumes">Perfumes</button>
+      <button class="tab" data-store-category="boxer">Bóxer</button>
+    </div>
+
+    <div class="rank-header" id="rankHeader">
+      <div><span class="rank-kicker" id="rankKicker">OBJETIVO SEMANAL</span><h2 id="rankHeading">Cumplimiento del objetivo</h2></div>
+      <span id="rankPeriod"></span>
+    </div>
+    <div class="rank-list" id="rankList">
+      <div class="state-msg"><strong>Cargando…</strong>Conectando con el consolidado.</div>
+    </div>
+
+    <div class="reglas-panel" id="reglasPanel" hidden>
+      <div class="reglas-intro">
+        <h2><svg class="svg-icon reglas-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>Reglamento oficial del GP</h2>
+        <p>Así se reparten los puntos y los premios cada fecha (semana) y en el cierre del mes.</p>
+      </div>
+
+      <article class="reglas-card">
+        <div class="reglas-card-head"><svg class="svg-icon reglas-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><div><h3>Carrera Principal · Liga</h3><p>Premia el % de cumplimiento sobre el objetivo individual de venta.</p></div></div>
+        <div class="reglas-points">
+          <div class="reglas-point top"><span class="pos">1°</span><span class="pts">25</span></div>
+          <div class="reglas-point top"><span class="pos">2°</span><span class="pts">18</span></div>
+          <div class="reglas-point top"><span class="pos">3°</span><span class="pts">15</span></div>
+          <div class="reglas-point"><span class="pos">4°</span><span class="pts">12</span></div>
+          <div class="reglas-point"><span class="pos">5°</span><span class="pts">10</span></div>
+          <div class="reglas-point"><span class="pos">6°</span><span class="pts">8</span></div>
+          <div class="reglas-point"><span class="pos">7°</span><span class="pts">6</span></div>
+          <div class="reglas-point"><span class="pos">8°</span><span class="pts">4</span></div>
+          <div class="reglas-point"><span class="pos">9°</span><span class="pts">2</span></div>
+          <div class="reglas-point"><span class="pos">10°</span><span class="pts">1</span></div>
+        </div>
+        <p class="reglas-note">Puntos GP VDH al Top 10 de cada fecha (semana).</p>
+      </article>
+
+      <article class="reglas-card">
+        <div class="reglas-card-head"><svg class="svg-icon reglas-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><div><h3>Carreras Sprint</h3><p>Mide el % de cumplimiento sobre objetivo en cada producto o métrica específica: Perfumes, Boxer, PxT y Ticket Promedio.</p></div></div>
+        <div class="reglas-points">
+          <div class="reglas-point top"><span class="pos">1°</span><span class="pts">8</span></div>
+          <div class="reglas-point top"><span class="pos">2°</span><span class="pts">7</span></div>
+          <div class="reglas-point top"><span class="pos">3°</span><span class="pts">6</span></div>
+          <div class="reglas-point"><span class="pos">4°</span><span class="pts">5</span></div>
+          <div class="reglas-point"><span class="pos">5°</span><span class="pts">4</span></div>
+          <div class="reglas-point"><span class="pos">6°</span><span class="pts">3</span></div>
+          <div class="reglas-point"><span class="pos">7°</span><span class="pts">2</span></div>
+          <div class="reglas-point"><span class="pos">8°</span><span class="pts">1</span></div>
+        </div>
+        <p class="reglas-note">Puntos Sprint al Top 8 de cada categoría, por fecha.</p>
+      </article>
+
+      <article class="reglas-card reglas-card-simple">
+        <div class="reglas-card-head"><svg class="svg-icon reglas-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><div><h3>Gran Premio Mensual · GP</h3><p>Todos los puntos de la Carrera Principal + las Carreras Sprint se acumulan automáticamente fecha a fecha durante las 4 fechas del mes. El vendedor con más puntos acumulados al cierre del mes se corona <strong>Campeón del GP VDH</strong>.</p></div></div>
+      </article>
+
+      <article class="reglas-card reglas-card-simple reglas-card-cash" id="reglasPremios">
+        <div class="reglas-card-head"><svg class="svg-icon reglas-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg><div><h3>Premios semanales en efectivo</h3><p>Se otorgan semanalmente al Podio General (1°, 2° y 3° puesto) y al ganador de la <strong>Mayor Mejora VDH</strong>.</p></div></div>
+        <p class="reglas-note">Los puntos acumulados para el GP VDH son independientes del premio económico semanal — corren en paralelo.</p>
+      </article>
+
+      <div class="reglas-intro reglas-intro-sanciones" id="reglasSanciones">
+        <h2><svg class="svg-icon reglas-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16h6"/><path d="M2 16h6"/><path d="M12 2v4"/><path d="M4 6h16"/><path d="m8 6 4 12 4-12"/><path d="M2 16c0 2 1.5 3 3 3s3-1 3-3-1.5-4-3-4-3 2-3 4Z"/><path d="M16 16c0 2 1.5 3 3 3s3-1 3-3-1.5-4-3-4-3 2-3 4Z"/></svg>Transparencia y Fair Play</h2>
+        <p>La Liga Comercial VDH vale porque todos compiten con las mismas reglas. Así se cuida eso.</p>
+      </div>
+
+      <article class="reglas-card reglas-card-sanction">
+        <div class="reglas-card-head"><svg class="svg-icon reglas-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg><div><h3>Registro transparente</h3><p>Cada venta se asigna estrictamente al vendedor que atendió. Queda prohibido el traspaso de ventas, tickets o unidades entre vendedores para manipular promedios.</p></div></div>
+      </article>
+
+      <article class="reglas-card reglas-card-sanction reglas-card-danger">
+        <div class="reglas-card-head"><svg class="svg-icon reglas-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 8.5 8 11 4.5-2.5 8-6 8-11V5l-8-3Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><div><h3>Sanciones por infracción grave</h3><p>La manipulación o asignación falsa de tickets resulta en anulación inmediata de los puntos de esa fecha, descalificación del Podio y quita de los puntos aportados al local en la Copa de Constructores.</p></div></div>
+      </article>
+
+      <article class="reglas-card reglas-card-sanction">
+        <div class="reglas-card-head"><svg class="svg-icon reglas-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><div><h3>Auditoría</h3><p>La supervisión comercial audita los cierres de caja y la consistencia de los datos de forma aleatoria.</p></div></div>
+      </article>
+    </div>
+
+    <p class="footer-note">VDH · datos en vivo, mostrando el Top 15 general</p>
+  </div>
+
+  <div class="private-card" id="privateCard" hidden>
+    <div class="private-card-inner">
+      <div class="private-pos">
+        <span class="private-pos-num" id="privatePosNum">#—</span>
+        <span class="private-pos-total" id="privatePosTotal">de —</span>
+      </div>
+      <div class="private-info">
+        <div class="private-name" id="privateName"></div>
+        <div class="private-progress" id="privateProgress"></div>
+        <div class="private-micro" id="privateMicro"></div>
+      </div>
+      <button class="private-change" id="privateChangeBtn" type="button" title="Cambiar usuario">Cambiar</button>
+    </div>
+  </div>
+
+  <div class="identity-modal" id="identityModal" hidden>
+    <div class="identity-card">
+      <button class="identity-close" id="identityClose" type="button" aria-label="Cerrar" hidden>×</button>
+      <h2>¿Quién sos?</h2>
+      <p class="identity-sub">Elegí tu local y tu nombre para ver tu puesto y tu objetivo personal.</p>
+      <label class="identity-label" for="identityLocal">Local</label>
+      <select id="identityLocal" class="identity-select"><option value="">Elegí tu local…</option></select>
+      <label class="identity-label" for="identityVendor">Vendedor/a</label>
+      <select id="identityVendor" class="identity-select" disabled><option value="">Elegí primero tu local…</option></select>
+      <div class="identity-actions">
+        <button class="identity-confirm" id="identityConfirm" type="button" disabled>Confirmar</button>
+        <button class="identity-skip" id="identitySkip" type="button">Ver como invitado</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="identity-modal" id="pinModal" hidden>
+    <div class="identity-card">
+      <button class="identity-close" id="pinCancel" type="button" aria-label="Cerrar">×</button>
+      <h2>Modo Supervisión</h2>
+      <p class="identity-sub">Ingresá el PIN de administración para ver la tabla completa, el desglose de puntos GP VDH y los comparativos entre locales.</p>
+      <label class="identity-label" for="pinInput">PIN</label>
+      <input id="pinInput" class="identity-select" type="password" inputmode="numeric" autocomplete="off" placeholder="••••">
+      <p class="pin-error" id="pinError" hidden>PIN incorrecto.</p>
+      <div class="identity-actions">
+        <button class="identity-confirm" id="pinConfirm" type="button">Ingresar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NAVEGACIÓN MÓVIL ESTILO TIENDANUBE (< 768px) ─────────────
+       Reemplaza el scope-tabs de arriba solo en mobile — scopeTabs sigue existiendo tal cual para
+       desktop (≥768px), no se duplica lógica: los mismos data-scope, el mismo render(). -->
+  <nav class="bottom-nav" id="bottomNav" aria-label="Navegación principal">
+    <button class="bottom-nav-item active" id="bottomNavHome" data-scope="home" type="button">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="bottom-nav-label">Inicio</span>
+    </button>
+    <button class="bottom-nav-item" id="bottomNavStores" data-scope="stores" type="button">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M3 9a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"/><path d="M4 9v10h16V9"/><path d="M9 21v-6h6v6"/></svg><span class="bottom-nav-label">Locales</span>
+    </button>
+    <button class="bottom-nav-item" id="bottomNavSellers" data-scope="sellers" type="button">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="bottom-nav-label">Vendedores</span>
+    </button>
+    <button class="bottom-nav-item" id="bottomNavMore" type="button" aria-haspopup="true" aria-expanded="false">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="18" x2="20" y2="18"/></svg><span class="bottom-nav-label">Más</span>
+    </button>
+  </nav>
+
+  <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+  <div class="drawer-panel" id="drawerPanel" hidden role="dialog" aria-label="Menú completo">
+    <div class="drawer-head">
+      <span>Menú completo</span>
+      <button class="drawer-close" id="drawerClose" type="button" aria-label="Cerrar">×</button>
+    </div>
+    <div class="drawer-body">
+      <div class="drawer-group">
+        <span class="drawer-group-title">Gestión</span>
+        <button class="drawer-item" data-drawer-scope="stores"><svg class="drawer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M3 9a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"/><path d="M4 9v10h16V9"/><path d="M9 21v-6h6v6"/></svg>Locales</button>
+        <button class="drawer-item" data-drawer-scope="sellers"><svg class="drawer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Vendedores</button>
+      </div>
+      <div class="drawer-group">
+        <span class="drawer-group-title">Competencia</span>
+        <button class="drawer-item" data-drawer-scope="fama"><svg class="drawer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.5 13.5 17 22l-5-3-5 3 1.5-8.5"/></svg>Salón de la Fama</button>
+        <button class="drawer-item" data-drawer-scope="reglas" data-drawer-anchor="reglasPremios"><svg class="drawer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4a2 2 0 0 0 0 4h3"/><path d="M17 5h3a2 2 0 0 1 0 4h-3"/></svg>Premios de la Semana</button>
+      </div>
+      <div class="drawer-group">
+        <span class="drawer-group-title">Reglamento</span>
+        <button class="drawer-item" data-drawer-scope="reglas"><svg class="drawer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5c2-1.5 5-1.5 7 0v14c-2-1.5-5-1.5-7 0V5Z"/><path d="M22 5c-2-1.5-5-1.5-7 0v14c2-1.5 5-1.5 7 0V5Z"/></svg>Normas GP</button>
+        <button class="drawer-item" data-drawer-scope="reglas" data-drawer-anchor="reglasSanciones"><svg class="drawer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 8.5 8 11 4.5-2.5 8-6 8-11V5l-8-3Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>Sanciones y Criterios</button>
+      </div>
+      <div class="drawer-group">
+        <span class="drawer-group-title">Configuración</span>
+        <button class="drawer-item" id="drawerAjustes"><svg class="drawer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>Ajustes (identificarme / local)</button>
+        <div class="drawer-theme-row">
+          <span class="drawer-item-label"><svg class="drawer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>Tema</span>
+          <div class="theme-toggle" role="group" aria-label="Tema visual (menú)">
+            <button type="button" class="theme-btn" data-theme-choice="dark" title="Tema oscuro" aria-label="Tema oscuro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg></button>
+            <button type="button" class="theme-btn" data-theme-choice="light" title="Tema claro" aria-label="Tema claro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
