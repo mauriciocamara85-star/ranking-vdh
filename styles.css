@@ -195,8 +195,6 @@ body{
 .home-hero-label{display:block;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
 .home-hero-value{font:700 30px var(--display);margin:6px 0 3px}
 .home-hero-sub{font-size:12px;color:var(--soft)}
-.home-hero-bar{margin-top:12px;height:6px;border-radius:var(--radius-pill);background:var(--ink);overflow:hidden}
-.home-hero-bar-fill{height:100%;border-radius:var(--radius-pill);background:linear-gradient(90deg,var(--coral),var(--amber));transition:width .9s cubic-bezier(.34,1.56,.64,1)}
 .home-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .home-card{
   background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;
@@ -253,16 +251,6 @@ body{
    trabajo de marcar al líder — dos señales para un mismo dato. Un borde de 2px, sin blur, es
    visible en los dos temas por igual (no depende de que el fondo sea oscuro para notarse). */
 .rank-row.top1{border-color:var(--coral);border-width:2px}
-/* ── BARRA DE CUMPLIMIENTO (fila del ranking) ────────────────
-   Ocupa toda la fila (grid-column:1/-1 la manda a una fila implícita nueva del grid de 3 columnas
-   de arriba) — el % de cumplimiento ya se mostraba como texto, esto le suma el gesto de "se está
-   llenando hacia la meta" que es el que más engancha en una mecánica de objetivo semanal. El ancho
-   final lo pone rankRow() inline (dinámico, viene del dato); acá solo la transición de cómo llega.
-   Siempre coral→ámbar (colores de carrera), nunca cambia a verde acá aunque se pase el 100% — ver
-   el comentario de rankRow() en app.js: superar el objetivo no "cierra" la carrera, se sigue
-   compitiendo por posición. El verde de festejo queda solo en .private-bar-fill.goal-hit. */
-.rank-bar{grid-column:1/-1;height:4px;border-radius:var(--radius-pill);background:var(--ink);overflow:hidden;margin-top:1px}
-.rank-bar-fill{height:100%;border-radius:var(--radius-pill);background:linear-gradient(90deg,var(--coral),var(--amber));transition:width .7s cubic-bezier(.34,1.56,.64,1)}
 .rank-medal-pos{font:700 15px var(--display);text-align:center;color:var(--muted)}
 .rank-row.top1 .rank-medal-pos,.rank-row.top2 .rank-medal-pos,.rank-row.top3 .rank-medal-pos{font-size:20px}
 .rank-info{overflow:hidden}
@@ -299,8 +287,8 @@ body.has-private-card{padding-bottom:96px}
   box-shadow:0 8px 24px rgba(0,0,0,.35);
   transition:border-color .4s,box-shadow .4s,background .4s;
 }
-/* Festejo al superar el 100% del objetivo — mismo lenguaje visual (mint) que .rank-bar-fill.goal-hit
-   y .home-hero-bar-fill.goal-hit, para que "cumplí el objetivo" se lea igual en toda la app. */
+/* Festejo al superar el 100% del objetivo, único lugar de la app con este glow/barra en mint —
+   la lista y el hero de Inicio no tienen su propia barra (se probó y se sacó, ver app.js). */
 @keyframes goalPop{0%{transform:scale(1)}30%{transform:scale(1.015)}100%{transform:scale(1)}}
 .private-card.goal-hit .private-card-inner{
   border-color:var(--mint);background:linear-gradient(180deg,rgba(52,211,153,.16),var(--card) 55%);

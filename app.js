@@ -309,23 +309,14 @@ function fillLocalFilter(){
 // nameSuffixHtml (ej. el trofeo del líder de Locales) va SIN escapar, a propósito, pegado
 // después del nombre ya escapado — antes iba concatenado adentro de "name" y escapeHtml() lo
 // convertía en texto crudo ("<svg class=..."), en vez de renderizar el ícono.
-// ratio (opcional, 0-100+) dibuja la barra de cumplimiento al pie de la fila — solo tiene sentido
-// para categorías "real vs. objetivo" (Liga, Sprints, Locales por %); Campeonato/Mejora pasan
-// undefined y quedan sin barra, porque ahí "más arriba" no es un % contra una meta fija.
 // El stagger de la animación de entrada usa el índice i (tapado en 10 filas): así la fila 1 entra
 // primero y la 2ª/3ª un poquito después sin que una lista larga tarde 2 segundos en terminar.
-// La barra de la LISTA se queda siempre en los colores de carrera (coral→ámbar), nunca se pone
-// verde al pasar el 100% — acá "cumplir el objetivo" no es una meta que termina, se sigue
-// compitiendo por posición contra el resto. El verde de "festejo" queda reservado para la tarjeta
-// privada (renderPrivateCard/.private-bar-fill.goal-hit), que sí es un logro personal y puntual.
-// Se probó un avatar con iniciales acá (mismo lenguaje que .fama-avatar del Salón de la Fama) y se
-// sacó: sin foto real, la inicial solo repite la primera letra del nombre que ya está escrito al
-// lado — no suma información, y esta fila ya tiene bastante (medalla, nombre, local, %, monto,
-// barra). Queda documentado por si en algún momento hay fotos reales de vendedores — ahí sí volvería
-// a tener sentido con el mismo criterio que initialsOf().
-function rankRow(i,name,local,valueHtml,subHtml,extraHtml,nameSuffixHtml,ratio){
-  const barHtml=(ratio===null||ratio===undefined)?'':`<div class="rank-bar"><div class="rank-bar-fill" style="width:${Math.max(3,Math.min(100,ratio))}%"></div></div>`;
-  return `<div class="rank-row ${rankRowClass(i)}" style="animation-delay:${Math.min(i,10)*35}ms"><div class="rank-medal-pos">${medalFor(i)||(i+1)}</div><div class="rank-info"><div class="rank-name">${escapeHtml(name)}${nameSuffixHtml||''}</div>${local?`<div class="rank-local">${escapeHtml(local)}</div>`:''}${extraHtml?`<div class="rank-extra">${extraHtml}</div>`:''}</div><div class="rank-metric"><div class="rank-value">${valueHtml}</div><div class="rank-sub">${subHtml}</div></div>${barHtml}</div>`;
+// Se probaron acá, y se sacaron ambas tras verlas en celular real: una barra de cumplimiento al
+// pie de la fila (no convencía — "la barra no me cierra") y un avatar con iniciales (sin foto real
+// no sumaba info sobre el nombre ya escrito al lado). Quedan documentadas por si en algún momento
+// hay fotos reales de vendedores o se las quiere retomar con otro enfoque.
+function rankRow(i,name,local,valueHtml,subHtml,extraHtml,nameSuffixHtml){
+  return `<div class="rank-row ${rankRowClass(i)}" style="animation-delay:${Math.min(i,10)*35}ms"><div class="rank-medal-pos">${medalFor(i)||(i+1)}</div><div class="rank-info"><div class="rank-name">${escapeHtml(name)}${nameSuffixHtml||''}</div>${local?`<div class="rank-local">${escapeHtml(local)}</div>`:''}${extraHtml?`<div class="rank-extra">${extraHtml}</div>`:''}</div><div class="rank-metric"><div class="rank-value">${valueHtml}</div><div class="rank-sub">${subHtml}</div></div></div>`;
 }
 
 function render(){
@@ -508,9 +499,11 @@ function buildCategoryList(category){
   const list=ratioStandings(currentKey,cfg.field);
   return{list,currentKey,cfg};
 }
-function formatCategoryValue(cfg,p){
-  const unit=cfg.unit?` ${cfg.unit}`:'';
-  return`<span class="rank-value-main">${percent(p.ratio)}</span> <span class="rank-value-ctx">(${cfg.fmt(p.real)}/${cfg.fmt(p.obj)}${unit})</span>`;
+// Antes mostraba también "(real/obj)" en chiquito al lado del % — se sacó a pedido: el % solo se
+// lee más claro, y es justo el dato que sirve para detectar de un vistazo un objetivo mal cargado
+// (155%, 300%) sin que el detalle en $ le compita la atención.
+function formatCategoryValue(p){
+  return`<span class="rank-value-main">${percent(p.ratio)}</span>`;
 }
 function renderSellersCategory(category){
   const{list,currentKey,cfg}=buildCategoryList(category);
@@ -531,7 +524,7 @@ function renderSellersCategory(category){
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
     const badge=i<pointsTable.length?`<span class="sprint-badge">+${pointsTable[i]} pts GP</span>`:'';
-    return rankRow(i,p.name,p.local,formatCategoryValue(cfg,p),badge,'','',p.ratio);
+    return rankRow(i,p.name,p.local,formatCategoryValue(p),badge);
   }).join('');
 
   renderPrivateCard({
@@ -639,7 +632,7 @@ function renderStores(){
     const unit=cfg.unit?` ${cfg.unit}`:'';
     const sub=p.ratio!==null?`${cfg.fmt(p.real)}${unit} / ${cfg.fmt(p.obj)}${unit}`:`${cfg.fmt(p.real)}${unit}`;
     const extraHtml=`${p.vendorCount} vendedor${p.vendorCount===1?'':'es'} activo${p.vendorCount===1?'':'s'}`;
-    return rankRow(i,p.local,'',value,sub,extraHtml,trophy,p.ratio);
+    return rankRow(i,p.local,'',value,sub,extraHtml,trophy);
   }).join('');
 
   renderPrivateCard({
@@ -754,7 +747,6 @@ function renderHome(){
       <span class="home-hero-label">Venta de la empresa esta semana</span>
       <div class="home-hero-value">${money(totals.real)}</div>
       <div class="home-hero-sub">${ratio!==null?`${percent(ratio)} del objetivo (${money(totals.obj)})`:'Sin objetivo cargado'}</div>
-      ${ratio!==null?`<div class="home-hero-bar"><div class="home-hero-bar-fill" style="width:${Math.max(3,Math.min(100,ratio))}%"></div></div>`:''}
     </div>
     <div class="home-cards">
       <button class="home-card" data-jump="sellers">
