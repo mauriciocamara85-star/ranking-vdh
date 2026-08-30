@@ -1006,21 +1006,26 @@ qa('.drawer-item[data-drawer-scope]').forEach(btn=>btn.addEventListener('click',
 
 // Detecta cuando hay una versión nueva del sitio ya publicada (el SW la baja solo en segundo
 // plano) y muestra el cartel de "Actualizar" en vez de dejar la actualización pasar calladita.
-// navigator.serviceWorker.controller existe únicamente si esta pestaña YA estaba controlada por
-// un SW anterior — así el cartel no aparece en la primera visita (ahí no hay "versión anterior"
-// de la que avisar, solo se está instalando por primera vez).
+// Escucha 'controllerchange' en vez de 'updatefound'/'statechange' del worker instalando (como se
+// hacía antes): sw.js llama a skipWaiting()+clients.claim() apenas se instala, sin esperar a que
+// se cierren las pestañas viejas, y esa transición puede pasar tan rápido que el estado
+// "installed" nunca llega a engancharse a tiempo — carrera de tiempos real, confirmada en uso
+// (el cartel no estaba apareciendo pese a que la versión sí se actualizaba, gracias a que sw.js ya
+// pide todo a la red primero). 'controllerchange' en cambio se dispara siempre que el control
+// efectivamente cambia de manos, sin importar cuán rápido haya sido skipWaiting — es el evento que
+// las guías de PWA recomiendan para esto justamente por eso.
+// hadController se guarda ANTES de registrar nada: si ya es true, esta pestaña venía controlada
+// por un SW previo y cualquier controllerchange posterior es una actualización real. Si es false,
+// es la primera visita (no hay "versión anterior" de la que avisar) y no se engancha el listener.
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('sw.js').then(reg=>{
-      reg.addEventListener('updatefound',()=>{
-        const newWorker=reg.installing;
-        if(!newWorker)return;
-        newWorker.addEventListener('statechange',()=>{
-          if(newWorker.state==='installed'&&navigator.serviceWorker.controller){
-            $('updateBanner').hidden=false;
-          }
+    const hadController=!!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js').then(()=>{
+      if(hadController){
+        navigator.serviceWorker.addEventListener('controllerchange',()=>{
+          $('updateBanner').hidden=false;
         });
-      });
+      }
     }).catch(()=>{});
   });
   $('updateBannerBtn').addEventListener('click',()=>location.reload());
