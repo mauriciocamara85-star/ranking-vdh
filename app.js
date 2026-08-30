@@ -499,11 +499,15 @@ function buildCategoryList(category){
   const list=ratioStandings(currentKey,cfg.field);
   return{list,currentKey,cfg};
 }
-// Antes mostraba también "(real/obj)" en chiquito al lado del % — se sacó a pedido: el % solo se
-// lee más claro, y es justo el dato que sirve para detectar de un vistazo un objetivo mal cargado
-// (155%, 300%) sin que el detalle en $ le compita la atención.
-function formatCategoryValue(p){
-  return`<span class="rank-value-main">${percent(p.ratio)}</span>`;
+// El detalle "(real/obj)" se saca SOLO en Liga: ahí el objetivo es la venta total en $ (montos de
+// 7 cifras, "$1.249.278/$802.125") y competía demasiado con el %, que es el dato que importa para
+// detectar de un vistazo un objetivo mal cargado (155%, 300%). En Ticket/Perfumes/Boxer/PxT los
+// montos son chicos (unidades, o un ticket promedio de unos pocos miles) y ahí sí suma sin estorbar.
+function formatCategoryValue(category,cfg,p){
+  const percentHtml=`<span class="rank-value-main">${percent(p.ratio)}</span>`;
+  if(category==='liga')return percentHtml;
+  const unit=cfg.unit?` ${cfg.unit}`:'';
+  return`${percentHtml} <span class="rank-value-ctx">(${cfg.fmt(p.real)}/${cfg.fmt(p.obj)}${unit})</span>`;
 }
 function renderSellersCategory(category){
   const{list,currentKey,cfg}=buildCategoryList(category);
@@ -524,7 +528,7 @@ function renderSellersCategory(category){
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
     const badge=i<pointsTable.length?`<span class="sprint-badge">+${pointsTable[i]} pts GP</span>`:'';
-    return rankRow(i,p.name,p.local,formatCategoryValue(p),badge);
+    return rankRow(i,p.name,p.local,formatCategoryValue(category,cfg,p),badge);
   }).join('');
 
   renderPrivateCard({
