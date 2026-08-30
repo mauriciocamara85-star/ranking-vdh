@@ -50,18 +50,23 @@ body{
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394A3B8'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 14px center;
 }
-.auth-row{display:flex;gap:8px;margin-top:6px}
-.identity-chip,.supervisor-chip{
-  flex:1;min-width:0;height:30px;border-radius:var(--radius-sm);border:1px solid var(--line);
-  background:var(--card);color:var(--soft);font:600 11.5px var(--sans);display:flex;align-items:center;
-  justify-content:center;gap:6px;cursor:pointer;
-}
-.identity-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.identity-chip.identified{border-color:var(--mint);color:var(--white)}
-.supervisor-chip.active{border-color:var(--amber);color:var(--amber)}
-.identity-chip:active,.supervisor-chip:active{transform:scale(.98)}
 .identity-icon{font-size:13px}
 .updated-label{font-size:10px;color:var(--muted);margin-top:5px;text-align:center}
+/* identityChip/supervisorChip vivían en el header (auth-row, ya sacado — ver index.html) como
+   chips chicos y centrados; ahora viven dentro del drawer, así que se re-visten con la pinta de
+   .drawer-item: ancho completo, alineados a la izquierda, mismo alto táctil de 50px que cualquier
+   otro ítem del menú. Mismos elementos/ids que ya usa app.js (renderIdentityChip/
+   renderSupervisorChip) — ningún cambio de lógica, solo de piel. */
+.drawer-body .identity-chip,.drawer-body .supervisor-chip{
+  display:flex;align-items:center;width:100%;min-height:50px;height:auto;justify-content:flex-start;gap:14px;
+  padding:13px 12px;border:none;border-radius:var(--radius-sm);background:transparent;
+  color:var(--white);font:600 14px var(--sans);cursor:pointer;text-align:left;
+}
+.drawer-body .identity-chip:active,.drawer-body .supervisor-chip:active{background:var(--ink)}
+.drawer-body .identity-chip .svg-icon,.drawer-body .supervisor-chip .svg-icon{width:21px;height:21px;flex-shrink:0;color:var(--muted)}
+.drawer-body .identity-chip.identified .svg-icon{color:var(--mint)}
+.drawer-body .supervisor-chip.active .svg-icon{color:var(--amber)}
+.drawer-body .identity-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ── AVISO DE ACTUALIZACIÓN DISPONIBLE ───────────────────────
    Se muestra cuando el Service Worker detecta una versión nueva ya publicada — ver el bloque de
@@ -431,7 +436,7 @@ input.identity-select{background-image:none;letter-spacing:4px}
   .wrap{max-width:1120px;padding:0 24px 48px}
   .topbar{padding-left:24px;padding-right:24px}
   .topbar-row{max-width:1120px;margin:0 auto;width:100%}
-  .auth-row,.local-select{max-width:1120px;margin-left:auto;margin-right:auto}
+  .local-select{max-width:1120px;margin-left:auto;margin-right:auto}
   .rank-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px 14px;padding:6px 24px 0}
   .rank-list .rank-row.top1{grid-column:1/-1}
   .reglas-panel{padding:16px 24px 8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;align-items:start}

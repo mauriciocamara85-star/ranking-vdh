@@ -147,7 +147,10 @@ function updateIdentityConfirm(){
   $('identityConfirm').disabled=!($('identityLocal').value&&$('identityVendor').value);
 }
 
-$('identityChip').addEventListener('click',()=>openIdentityModal(state.user?'change':'onboard'));
+// closeDrawer() antes de abrir el modal: identityChip/supervisorChip ahora viven DENTRO del drawer
+// (ver index.html) — sin esto, el modal (z-index:30) queda tapado atrás del panel del drawer
+// (z-index:31), que se queda abierto de fondo aunque el usuario ya esté mirando el modal.
+$('identityChip').addEventListener('click',()=>{closeDrawer();openIdentityModal(state.user?'change':'onboard')});
 $('identityClose').addEventListener('click',closeIdentityModal);
 $('identityLocal').addEventListener('change',()=>{fillIdentityVendors();updateIdentityConfirm()});
 $('identityVendor').addEventListener('change',updateIdentityConfirm);
@@ -185,6 +188,7 @@ function renderSupervisorChip(){
   $('supervisorBadge').hidden=!state.supervisor;
 }
 $('supervisorChip').addEventListener('click',()=>{
+  closeDrawer();
   if(state.supervisor){
     state.supervisor=false;
     setSupervisorFlag(false);
@@ -1001,7 +1005,6 @@ qa('.drawer-item[data-drawer-scope]').forEach(btn=>btn.addEventListener('click',
   // pruebas (confirmado aislando variable por variable: mismo código, solo cambiando smooth→instant).
   if(anchorId)setTimeout(()=>{const el=$(anchorId);if(el)el.scrollIntoView({behavior:'instant',block:'start'})},80);
 }));
-$('drawerAjustes').addEventListener('click',()=>{closeDrawer();openIdentityModal('change')});
 
 // Detecta cuando hay una versión nueva del sitio ya publicada (el SW la baja solo en segundo
 // plano) y muestra el cartel de "Actualizar" en vez de dejar la actualización pasar calladita.
