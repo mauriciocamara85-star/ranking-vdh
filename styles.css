@@ -246,17 +246,13 @@ body{
   background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 12px;
   animation:fadeSlideIn .4s ease backwards;
 }
-/* El líder "respira": un glow que crece y baja de intensidad en loop, para que se note a simple
-   vista en una pantalla proyectada quién va primero — no solo el borde fijo que ya tenía. La
-   animation-delay que pone rankRow() inline (el stagger de entrada) también corre esta segunda
-   animación por índice de lista compartido: en la fila top1 (i=0) el delay es 0, así que el pulso
-   arranca apenas termina de entrar, sin que se note el corrimiento.
-   Reforzado tras probarlo en celular real en tema claro: el glow original (pensado y probado solo
-   en oscuro) quedaba casi invisible sobre tarjeta blanca — sube la opacidad/spread del shadow, le
-   suma un segundo shadow hacia adentro y engrosa el borde a 2px para que la distinción del líder
-   no dependa únicamente del glow (que un fondo claro diluye mucho más que uno oscuro). */
-@keyframes top1Glow{0%,100%{box-shadow:0 0 16px rgba(255,107,0,.4),inset 0 0 0 1px rgba(249,115,22,.35)}50%{box-shadow:0 0 30px rgba(255,107,0,.65),inset 0 0 0 1px rgba(249,115,22,.5)}}
-.rank-row.top1{border-color:var(--coral);border-width:2px;background:linear-gradient(180deg,rgba(249,115,22,.22),var(--card) 55%);animation:fadeSlideIn .4s ease backwards,top1Glow 2.4s ease-in-out .4s infinite}
+/* El líder se distingue con un borde coral prolijo, sin glow difuminado ni degradé de fondo — se
+   probaron ambas versiones en celular real: el glow difuminado (pensado y probado solo en tema
+   oscuro) quedaba casi invisible sobre tarjeta blanca en tema claro; reforzarlo lo arregló ahí pero
+   sumado al degradé de fondo se sentía "de más" una vez que la medalla dorada ya hacía ese mismo
+   trabajo de marcar al líder — dos señales para un mismo dato. Un borde de 2px, sin blur, es
+   visible en los dos temas por igual (no depende de que el fondo sea oscuro para notarse). */
+.rank-row.top1{border-color:var(--coral);border-width:2px}
 /* ── BARRA DE CUMPLIMIENTO (fila del ranking) ────────────────
    Ocupa toda la fila (grid-column:1/-1 la manda a una fila implícita nueva del grid de 3 columnas
    de arriba) — el % de cumplimiento ya se mostraba como texto, esto le suma el gesto de "se está

@@ -308,6 +308,11 @@ function fillLocalFilter(){
 // verde al pasar el 100% — acá "cumplir el objetivo" no es una meta que termina, se sigue
 // compitiendo por posición contra el resto. El verde de "festejo" queda reservado para la tarjeta
 // privada (renderPrivateCard/.private-bar-fill.goal-hit), que sí es un logro personal y puntual.
+// Se probó un avatar con iniciales acá (mismo lenguaje que .fama-avatar del Salón de la Fama) y se
+// sacó: sin foto real, la inicial solo repite la primera letra del nombre que ya está escrito al
+// lado — no suma información, y esta fila ya tiene bastante (medalla, nombre, local, %, monto,
+// barra). Queda documentado por si en algún momento hay fotos reales de vendedores — ahí sí volvería
+// a tener sentido con el mismo criterio que initialsOf().
 function rankRow(i,name,local,valueHtml,subHtml,extraHtml,nameSuffixHtml,ratio){
   const barHtml=(ratio===null||ratio===undefined)?'':`<div class="rank-bar"><div class="rank-bar-fill" style="width:${Math.max(3,Math.min(100,ratio))}%"></div></div>`;
   return `<div class="rank-row ${rankRowClass(i)}" style="animation-delay:${Math.min(i,10)*35}ms"><div class="rank-medal-pos">${medalFor(i)||(i+1)}</div><div class="rank-info"><div class="rank-name">${escapeHtml(name)}${nameSuffixHtml||''}</div>${local?`<div class="rank-local">${escapeHtml(local)}</div>`:''}${extraHtml?`<div class="rank-extra">${extraHtml}</div>`:''}</div><div class="rank-metric"><div class="rank-value">${valueHtml}</div><div class="rank-sub">${subHtml}</div></div>${barHtml}</div>`;
@@ -507,9 +512,15 @@ function renderSellersCategory(category){
   const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
   const visible=capForDisplay(filtered);
   const isSprint=category!=='liga';
+  // La pastillita "+X pts GP" ya marcaba el Top 8 de los Sprints (Ticket/Perfumes/Boxer/PxT) — acá
+  // se extiende a Liga con su propia escala (MAIN_POINTS, Top 10) para que la Carrera Principal
+  // muestre la misma señal de "zona de puntos" que ya tenían los Sprints. Sin esto, un vendedor en
+  // 4°-10° puesto (que SÍ suma puntos al Campeonato del mes, ver reglasPanel) se veía igual que uno
+  // en 11° (que no suma nada) — el dato más importante de esa fila estaba invisible.
+  const pointsTable=isSprint?SPRINT_POINTS:MAIN_POINTS;
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
-    const badge=isSprint&&i<SPRINT_POINTS.length?`<span class="sprint-badge">+${SPRINT_POINTS[i]} pts GP</span>`:'';
+    const badge=i<pointsTable.length?`<span class="sprint-badge">+${pointsTable[i]} pts GP</span>`:'';
     return rankRow(i,p.name,p.local,formatCategoryValue(cfg,p),badge,'','',p.ratio);
   }).join('');
 
@@ -913,6 +924,45 @@ $('localFilter').addEventListener('change',()=>{state.local=$('localFilter').val
 qa('#scopeTabs .tab').forEach(btn=>btn.addEventListener('click',()=>{state.scope=btn.dataset.scope;render()}));
 qa('#catTabs .tab').forEach(btn=>btn.addEventListener('click',()=>{state.category=btn.dataset.category;render()}));
 qa('#storeCatTabs .tab').forEach(btn=>btn.addEventListener('click',()=>{state.storeCategory=btn.dataset.storeCategory;render()}));
+
+/* ── SWIPE ENTRE CATEGORÍAS (atajo táctil sobre la lista) ─────
+   Deslizar el dedo sobre #rankList avanza/retrocede una píldora de categoría — mismo resultado que
+   tocar la píldora de al lado, solo que con el gesto. A propósito NO usa preventDefault en ningún
+   momento (ambos listeners son {passive:true}): solo lee dónde empezó y dónde terminó el toque, así
+   que el scroll vertical nativo de la lista sigue funcionando exactamente igual que antes, sin
+   ningún riesgo de que un swipe "se coma" el scroll o viceversa. Umbrales (50px horizontal mínimo,
+   60px vertical máximo, 600ms máximo) para que solo dispare con un gesto horizontal franco y rápido
+   — un scroll vertical normal, aunque tenga algo de deriva lateral, nunca lo activa.
+   Cicla con wrap-around (de la última píldora vuelve a la primera) y solo aplica en Vendedores/
+   Locales, que son las únicas vistas con píldoras de categoría para recorrer. */
+(function initCategorySwipe(){
+  const rankList=$('rankList');
+  const SWIPE_MIN_X=50,SWIPE_MAX_Y=60,SWIPE_MAX_MS=600;
+  let startX=0,startY=0,startT=0;
+  rankList.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1)return;
+    startX=e.touches[0].clientX;startY=e.touches[0].clientY;startT=Date.now();
+  },{passive:true});
+  rankList.addEventListener('touchend',e=>{
+    const touch=e.changedTouches[0];
+    if(!touch||(state.scope!=='sellers'&&state.scope!=='stores'))return;
+    const dx=touch.clientX-startX,dy=touch.clientY-startY;
+    if(Date.now()-startT>SWIPE_MAX_MS)return;
+    if(Math.abs(dx)<SWIPE_MIN_X||Math.abs(dy)>SWIPE_MAX_Y)return;
+    const dir=dx<0?1:-1; // deslizar a la izquierda = siguiente (misma convención que stories/carruseles)
+    const tabs=qa(state.scope==='sellers'?'#catTabs .tab':'#storeCatTabs .tab');
+    // El nombre de la propiedad de state ("category"/"storeCategory") coincide 1:1 con el atributo
+    // data-* de su fila de píldoras — una sola variable alcanza para leer state[key] y el dataset.
+    const key=state.scope==='sellers'?'category':'storeCategory';
+    const keys=tabs.map(b=>b.dataset[key]);
+    const idx=keys.indexOf(state[key]);
+    if(idx===-1)return;
+    const nextKey=keys[(idx+dir+keys.length)%keys.length];
+    state[key]=nextKey;
+    render();
+    tabs[keys.indexOf(nextKey)].scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});
+  },{passive:true});
+})();
 
 /* ── BOTTOM NAV + DRAWER (mobile) ─────────────────────────────
    Los 3 botones con data-scope navegan directo (mismo mecanismo que scopeTabs, un solo estado
