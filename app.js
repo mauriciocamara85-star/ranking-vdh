@@ -503,15 +503,13 @@ function buildCategoryList(category){
   const list=ratioStandings(currentKey,cfg.field);
   return{list,currentKey,cfg};
 }
-// El detalle "(real/obj)" se saca SOLO en Liga: ahí el objetivo es la venta total en $ (montos de
-// 7 cifras, "$1.249.278/$802.125") y competía demasiado con el %, que es el dato que importa para
-// detectar de un vistazo un objetivo mal cargado (155%, 300%). En Ticket/Perfumes/Boxer/PxT los
-// montos son chicos (unidades, o un ticket promedio de unos pocos miles) y ahí sí suma sin estorbar.
-function formatCategoryValue(category,cfg,p){
-  const percentHtml=`<span class="rank-value-main">${percent(p.ratio)}</span>`;
-  if(category==='liga')return percentHtml;
+// El detalle "(real/obj)" va en todas las categorías, Liga incluida: el % solo no distingue entre
+// "vendí $1.550 contra un objetivo de $1.000" y "vendí $15.500.000 contra $10.000.000" — mismo
+// 155%, escala de esfuerzo completamente distinta. Se probó sacarlo en Liga (montos de 7 cifras) y
+// se volvió a poner: probado en celular real, el dato pesa más que el espacio que ocupa.
+function formatCategoryValue(cfg,p){
   const unit=cfg.unit?` ${cfg.unit}`:'';
-  return`${percentHtml} <span class="rank-value-ctx">(${cfg.fmt(p.real)}/${cfg.fmt(p.obj)}${unit})</span>`;
+  return`<span class="rank-value-main">${percent(p.ratio)}</span> <span class="rank-value-ctx">(${cfg.fmt(p.real)}/${cfg.fmt(p.obj)}${unit})</span>`;
 }
 function renderSellersCategory(category){
   const{list,currentKey,cfg}=buildCategoryList(category);
@@ -532,7 +530,7 @@ function renderSellersCategory(category){
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
     const badge=i<pointsTable.length?`<span class="sprint-badge">+${pointsTable[i]} pts GP</span>`:'';
-    return rankRow(i,p.name,p.local,formatCategoryValue(category,cfg,p),badge);
+    return rankRow(i,p.name,p.local,formatCategoryValue(cfg,p),badge);
   }).join('');
 
   renderPrivateCard({
