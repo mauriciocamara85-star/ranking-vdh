@@ -90,6 +90,15 @@ function isGuest(){try{return localStorage.getItem(GUEST_KEY)==='1'}catch{return
 state.user=loadUser();
 state.guest=!state.user&&isGuest();
 
+// ── ANALYTICS (Google Analytics 4) ──────────────────────────
+// track() nunca puede romper la app: si gtag no cargó (bloqueador de anuncios, sin red, GA caído)
+// el try/catch lo hace desaparecer en silencio en vez de tirar la carga de datos abajo.
+// app_open se manda una vez por apertura, con local+vendedor si ya hay alguien identificado —
+// así en Analytics se puede ver no solo "cuántas aperturas" sino "quién específicamente" volvió
+// (Informes → Interacción → Eventos → app_open, desglosado por el parámetro vdh_vendedor).
+function track(event,params){try{if(typeof gtag==='function')gtag('event',event,params||{})}catch{}}
+track('app_open',{vdh_local:state.user?state.user.local:'(sin identificar)',vdh_vendedor:state.user?state.user.vendedor:'(sin identificar)'});
+
 function allLocals(){return[...new Set((state.tables.VENDEDOR_SEMANAL||[]).map(r=>r.Local).filter(Boolean))].sort()}
 function vendorsForLocal(local){return[...new Set((state.tables.VENDEDOR_SEMANAL||[]).filter(r=>r.Local===local).map(r=>r.Vendedor).filter(Boolean))].sort()}
 
@@ -148,6 +157,7 @@ $('identityConfirm').addEventListener('click',()=>{
   state.user={local,vendedor};
   state.guest=false;
   saveUser(state.user);
+  track('identify_vendor',{vdh_local:local,vdh_vendedor:vendedor});
   renderIdentityChip();
   closeIdentityModal();
   render();
