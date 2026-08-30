@@ -15,6 +15,18 @@ body{
 }
 .wrap{max-width:640px;margin:0 auto;padding:0 0 40px}
 
+/* ── ANIMACIÓN DE ENTRADA (fade + slide-up, con stagger) ─────
+   Un solo keyframe reusado por todas las tarjetas/filas que arma render() con innerHTML: sin esto
+   cada cambio de pestaña o refresh reemplazaba el DOM de golpe, sin transición, y se sentía como
+   una tabla estática en vez de algo vivo. "backwards" hace que el elemento arranque ya en el
+   estado 0% (opacity:0) aunque su animation-delay todavía no llegó, evitando el flash inicial.
+   prefers-reduced-motion apaga todo esto (y cualquier otra animación/transición del archivo) para
+   quien lo pidió a nivel sistema operativo. */
+@keyframes fadeSlideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-delay:0s!important;transition-duration:.001ms!important}
+}
+
 /* ── TOPBAR ──────────────────────────────────────────────── */
 .topbar{
   position:sticky;top:0;z-index:10;background:rgba(11,18,32,.92);backdrop-filter:blur(8px);
@@ -179,15 +191,20 @@ body{
 
 /* ── INICIO / PULSO GENERAL ───────────────────────────────── */
 .home-wrap{display:flex;flex-direction:column;gap:12px;padding:2px 16px 0}
-.home-hero{background:var(--card);border:1px solid var(--coral);border-radius:var(--radius);padding:18px;box-shadow:0 0 20px rgba(255,107,0,.18)}
+.home-hero{background:var(--card);border:1px solid var(--coral);border-radius:var(--radius);padding:18px;box-shadow:0 0 20px rgba(255,107,0,.18);animation:fadeSlideIn .4s ease backwards}
 .home-hero-label{display:block;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
 .home-hero-value{font:700 30px var(--display);margin:6px 0 3px}
 .home-hero-sub{font-size:12px;color:var(--soft)}
+.home-hero-bar{margin-top:12px;height:6px;border-radius:var(--radius-pill);background:var(--ink);overflow:hidden}
+.home-hero-bar-fill{height:100%;border-radius:var(--radius-pill);background:linear-gradient(90deg,var(--coral),var(--amber));transition:width .9s cubic-bezier(.34,1.56,.64,1)}
 .home-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .home-card{
   background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;
   display:flex;flex-direction:column;gap:3px;text-align:left;cursor:pointer;
+  animation:fadeSlideIn .4s ease backwards;
 }
+.home-card:nth-child(1){animation-delay:.06s}
+.home-card:nth-child(2){animation-delay:.1s}
 .home-card:active{border-color:var(--coral)}
 .home-card-label{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:5px}
 .home-card-icon{width:13px;height:13px;flex-shrink:0;color:var(--muted)}
@@ -197,12 +214,15 @@ body{
   background:var(--ink);border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px;
   color:var(--soft);font:700 12.5px var(--sans);cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:6px;
+  animation:fadeSlideIn .4s ease .14s backwards;
 }
 .home-cta-icon{width:15px;height:15px;flex-shrink:0;color:var(--coral)}
 
 /* Top 3 de Inicio para vendedores sin PIN de Supervisión — mismo lenguaje visual que .home-card
    pero sin ningún valor numérico ($/%), solo puesto (medalla) + nombre + local. */
-.home-top3-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;cursor:pointer}
+.home-top3-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;cursor:pointer;animation:fadeSlideIn .4s ease backwards}
+.home-top3-card:nth-of-type(1){animation-delay:.06s}
+.home-top3-card:nth-of-type(2){animation-delay:.1s}
 .home-top3-card:active{border-color:var(--coral)}
 .home-top3-title{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px}
 .home-top3-row{display:flex;align-items:center;gap:11px;padding:8px 0;border-top:1px solid var(--line)}
@@ -224,8 +244,29 @@ body{
 .rank-row{
   display:grid;grid-template-columns:30px 1fr auto;align-items:center;gap:10px;
   background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 12px;
+  animation:fadeSlideIn .4s ease backwards;
 }
-.rank-row.top1{border-color:var(--coral);background:linear-gradient(180deg,rgba(249,115,22,.16),var(--card) 60%);box-shadow:0 0 15px rgba(255,107,0,.25)}
+/* El líder "respira": un glow que crece y baja de intensidad en loop, para que se note a simple
+   vista en una pantalla proyectada quién va primero — no solo el borde fijo que ya tenía. La
+   animation-delay que pone rankRow() inline (el stagger de entrada) también corre esta segunda
+   animación por índice de lista compartido: en la fila top1 (i=0) el delay es 0, así que el pulso
+   arranca apenas termina de entrar, sin que se note el corrimiento.
+   Reforzado tras probarlo en celular real en tema claro: el glow original (pensado y probado solo
+   en oscuro) quedaba casi invisible sobre tarjeta blanca — sube la opacidad/spread del shadow, le
+   suma un segundo shadow hacia adentro y engrosa el borde a 2px para que la distinción del líder
+   no dependa únicamente del glow (que un fondo claro diluye mucho más que uno oscuro). */
+@keyframes top1Glow{0%,100%{box-shadow:0 0 16px rgba(255,107,0,.4),inset 0 0 0 1px rgba(249,115,22,.35)}50%{box-shadow:0 0 30px rgba(255,107,0,.65),inset 0 0 0 1px rgba(249,115,22,.5)}}
+.rank-row.top1{border-color:var(--coral);border-width:2px;background:linear-gradient(180deg,rgba(249,115,22,.22),var(--card) 55%);animation:fadeSlideIn .4s ease backwards,top1Glow 2.4s ease-in-out .4s infinite}
+/* ── BARRA DE CUMPLIMIENTO (fila del ranking) ────────────────
+   Ocupa toda la fila (grid-column:1/-1 la manda a una fila implícita nueva del grid de 3 columnas
+   de arriba) — el % de cumplimiento ya se mostraba como texto, esto le suma el gesto de "se está
+   llenando hacia la meta" que es el que más engancha en una mecánica de objetivo semanal. El ancho
+   final lo pone rankRow() inline (dinámico, viene del dato); acá solo la transición de cómo llega.
+   Siempre coral→ámbar (colores de carrera), nunca cambia a verde acá aunque se pase el 100% — ver
+   el comentario de rankRow() en app.js: superar el objetivo no "cierra" la carrera, se sigue
+   compitiendo por posición. El verde de festejo queda solo en .private-bar-fill.goal-hit. */
+.rank-bar{grid-column:1/-1;height:4px;border-radius:var(--radius-pill);background:var(--ink);overflow:hidden;margin-top:1px}
+.rank-bar-fill{height:100%;border-radius:var(--radius-pill);background:linear-gradient(90deg,var(--coral),var(--amber));transition:width .7s cubic-bezier(.34,1.56,.64,1)}
 .rank-medal-pos{font:700 15px var(--display);text-align:center;color:var(--muted)}
 .rank-row.top1 .rank-medal-pos,.rank-row.top2 .rank-medal-pos,.rank-row.top3 .rank-medal-pos{font-size:20px}
 .rank-info{overflow:hidden}
@@ -260,14 +301,28 @@ body.has-private-card{padding-bottom:96px}
   background:linear-gradient(180deg,rgba(249,115,22,.14),var(--card) 55%);
   border:1px solid var(--coral);border-radius:var(--radius);padding:11px 14px;
   box-shadow:0 8px 24px rgba(0,0,0,.35);
+  transition:border-color .4s,box-shadow .4s,background .4s;
+}
+/* Festejo al superar el 100% del objetivo — mismo lenguaje visual (mint) que .rank-bar-fill.goal-hit
+   y .home-hero-bar-fill.goal-hit, para que "cumplí el objetivo" se lea igual en toda la app. */
+@keyframes goalPop{0%{transform:scale(1)}30%{transform:scale(1.015)}100%{transform:scale(1)}}
+.private-card.goal-hit .private-card-inner{
+  border-color:var(--mint);background:linear-gradient(180deg,rgba(52,211,153,.16),var(--card) 55%);
+  box-shadow:0 8px 26px rgba(0,0,0,.35),0 0 16px rgba(52,211,153,.35);
+  animation:goalPop .5s ease;
 }
 .private-pos{text-align:center;line-height:1.1}
 .private-pos-num{display:block;font:700 20px var(--display);color:var(--coral)}
+.private-card.goal-hit .private-pos-num{color:var(--mint)}
 .private-pos-total{display:block;font-size:9.5px;color:var(--muted)}
 .private-info{overflow:hidden}
 .private-name{font-weight:700;font-size:13px;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .private-progress{font-size:11px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.private-bar{margin-top:5px;height:4px;max-width:220px;border-radius:var(--radius-pill);background:var(--ink);overflow:hidden}
+.private-bar-fill{height:100%;border-radius:var(--radius-pill);background:linear-gradient(90deg,var(--coral),var(--amber));transition:width .7s cubic-bezier(.34,1.56,.64,1)}
+.private-bar-fill.goal-hit{background:linear-gradient(90deg,var(--mint),#5EEAD4);box-shadow:0 0 8px rgba(52,211,153,.55)}
 .private-micro{font-size:10.5px;color:var(--mint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.private-goal-badge{display:flex;align-items:center;gap:4px;margin-top:3px;font:700 10.5px var(--sans);color:var(--mint)}
 .private-change{
   flex-shrink:0;height:28px;padding:0 10px;border-radius:var(--radius-pill);border:1px solid var(--line);
   background:var(--card);color:var(--muted);font:600 10.5px var(--sans);cursor:pointer;
@@ -341,7 +396,11 @@ input.identity-select{background-image:none;letter-spacing:4px}
 .fama-podium-card{
   background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
   padding:16px 14px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;
+  animation:fadeSlideIn .45s ease backwards;
 }
+.fama-podium-card.pos1{animation-delay:.08s}
+.fama-podium-card.pos2{animation-delay:.02s}
+.fama-podium-card.pos3{animation-delay:.14s}
 .fama-podium-card.pos1{border-color:var(--coral);background:linear-gradient(180deg,rgba(249,115,22,.18),var(--card) 65%);box-shadow:0 0 20px rgba(255,107,0,.22);padding:22px 14px}
 .fama-podium-card.pos2{border-color:#C0C8D4}
 .fama-podium-card.pos3{border-color:#B08D57}
@@ -360,13 +419,19 @@ input.identity-select{background-image:none;letter-spacing:4px}
 .fama-podium-metric{font:700 16px var(--display);color:var(--coral);margin-top:2px}
 .fama-section-title{margin:18px 16px 0;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--coral);font-weight:700}
 .fama-store-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 16px 0}
-.fama-store-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
+.fama-store-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 6px;text-align:center;display:flex;flex-direction:column;gap:2px;animation:fadeSlideIn .4s ease backwards}
+.fama-store-card:nth-child(1){animation-delay:.04s}
+.fama-store-card:nth-child(2){animation-delay:.08s}
+.fama-store-card:nth-child(3){animation-delay:.12s}
 .fama-medal-sm{font-size:16px;line-height:1}
 .fama-store-name{font-weight:700;font-size:11px;color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fama-store-metric{font:700 13px var(--display);color:var(--coral)}
 .fama-store-vendors{font-size:9px;color:var(--muted)}
 .fama-highlight-grid{display:grid;grid-template-columns:1fr;gap:8px;margin:8px 16px 0}
-.fama-highlight-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px}
+.fama-highlight-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;animation:fadeSlideIn .4s ease backwards}
+.fama-highlight-card:nth-child(1){animation-delay:.04s}
+.fama-highlight-card:nth-child(2){animation-delay:.08s}
+.fama-highlight-card:nth-child(3){animation-delay:.12s}
 .fama-highlight-title{display:block;font-size:11px;font-weight:700;color:var(--soft);margin-bottom:4px}
 .fama-highlight-name{display:block;font-weight:700;font-size:13.5px;color:var(--white)}
 .fama-highlight-sub{display:block;font-size:11px;color:var(--muted);margin-top:1px}

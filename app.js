@@ -77,7 +77,8 @@ const ICONS={
   crown:'<path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7Z"/><path d="M5 20h14"/>',
   sparkles:'<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>',
   shirt:'<path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/>',
-  rocket:'<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>'
+  rocket:'<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
+  checkCircle:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>'
 };
 function icon(name,cls){return`<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]||''}</svg>`}
 
@@ -298,8 +299,18 @@ function fillLocalFilter(){
 // nameSuffixHtml (ej. el trofeo del líder de Locales) va SIN escapar, a propósito, pegado
 // después del nombre ya escapado — antes iba concatenado adentro de "name" y escapeHtml() lo
 // convertía en texto crudo ("<svg class=..."), en vez de renderizar el ícono.
-function rankRow(i,name,local,valueHtml,subHtml,extraHtml,nameSuffixHtml){
-  return `<div class="rank-row ${rankRowClass(i)}"><div class="rank-medal-pos">${medalFor(i)||(i+1)}</div><div class="rank-info"><div class="rank-name">${escapeHtml(name)}${nameSuffixHtml||''}</div>${local?`<div class="rank-local">${escapeHtml(local)}</div>`:''}${extraHtml?`<div class="rank-extra">${extraHtml}</div>`:''}</div><div class="rank-metric"><div class="rank-value">${valueHtml}</div><div class="rank-sub">${subHtml}</div></div></div>`;
+// ratio (opcional, 0-100+) dibuja la barra de cumplimiento al pie de la fila — solo tiene sentido
+// para categorías "real vs. objetivo" (Liga, Sprints, Locales por %); Campeonato/Mejora pasan
+// undefined y quedan sin barra, porque ahí "más arriba" no es un % contra una meta fija.
+// El stagger de la animación de entrada usa el índice i (tapado en 10 filas): así la fila 1 entra
+// primero y la 2ª/3ª un poquito después sin que una lista larga tarde 2 segundos en terminar.
+// La barra de la LISTA se queda siempre en los colores de carrera (coral→ámbar), nunca se pone
+// verde al pasar el 100% — acá "cumplir el objetivo" no es una meta que termina, se sigue
+// compitiendo por posición contra el resto. El verde de "festejo" queda reservado para la tarjeta
+// privada (renderPrivateCard/.private-bar-fill.goal-hit), que sí es un logro personal y puntual.
+function rankRow(i,name,local,valueHtml,subHtml,extraHtml,nameSuffixHtml,ratio){
+  const barHtml=(ratio===null||ratio===undefined)?'':`<div class="rank-bar"><div class="rank-bar-fill" style="width:${Math.max(3,Math.min(100,ratio))}%"></div></div>`;
+  return `<div class="rank-row ${rankRowClass(i)}" style="animation-delay:${Math.min(i,10)*35}ms"><div class="rank-medal-pos">${medalFor(i)||(i+1)}</div><div class="rank-info"><div class="rank-name">${escapeHtml(name)}${nameSuffixHtml||''}</div>${local?`<div class="rank-local">${escapeHtml(local)}</div>`:''}${extraHtml?`<div class="rank-extra">${extraHtml}</div>`:''}</div><div class="rank-metric"><div class="rank-value">${valueHtml}</div><div class="rank-sub">${subHtml}</div></div>${barHtml}</div>`;
 }
 
 function render(){
@@ -499,7 +510,7 @@ function renderSellersCategory(category){
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
     const badge=isSprint&&i<SPRINT_POINTS.length?`<span class="sprint-badge">+${SPRINT_POINTS[i]} pts GP</span>`:'';
-    return rankRow(i,p.name,p.local,formatCategoryValue(cfg,p),badge);
+    return rankRow(i,p.name,p.local,formatCategoryValue(cfg,p),badge,'','',p.ratio);
   }).join('');
 
   renderPrivateCard({
@@ -607,7 +618,7 @@ function renderStores(){
     const unit=cfg.unit?` ${cfg.unit}`:'';
     const sub=p.ratio!==null?`${cfg.fmt(p.real)}${unit} / ${cfg.fmt(p.obj)}${unit}`:`${cfg.fmt(p.real)}${unit}`;
     const extraHtml=`${p.vendorCount} vendedor${p.vendorCount===1?'':'es'} activo${p.vendorCount===1?'':'s'}`;
-    return rankRow(i,p.local,'',value,sub,extraHtml,trophy);
+    return rankRow(i,p.local,'',value,sub,extraHtml,trophy,p.ratio);
   }).join('');
 
   renderPrivateCard({
@@ -722,6 +733,7 @@ function renderHome(){
       <span class="home-hero-label">Venta de la empresa esta semana</span>
       <div class="home-hero-value">${money(totals.real)}</div>
       <div class="home-hero-sub">${ratio!==null?`${percent(ratio)} del objetivo (${money(totals.obj)})`:'Sin objetivo cargado'}</div>
+      ${ratio!==null?`<div class="home-hero-bar"><div class="home-hero-bar-fill" style="width:${Math.max(3,Math.min(100,ratio))}%"></div></div>`:''}
     </div>
     <div class="home-cards">
       <button class="home-card" data-jump="sellers">
@@ -871,6 +883,18 @@ function renderPrivateCard({list,match,nameOf,progressText,microText,leaderText}
     const text=microText?microText(p,above):null;
     $('privateMicro').textContent=text?`${text} #${idx}`:'Seguí así para subir de puesto.';
   }
+  // Barra + festejo: solo para métricas real/objetivo (p.ratio existe) — Campeonato y Mejora usan
+  // puntos/deltas sin un 100% fijo de referencia, así que ahí no hay ni barra ni "objetivo cumplido".
+  const goalBadge=$('privateGoalBadge'),barEl=$('privateBar'),barFill=$('privateBarFill');
+  const hasRatio=typeof p.ratio==='number';
+  const goalHit=hasRatio&&p.ratio>=100;
+  barEl.hidden=!hasRatio;
+  if(hasRatio){
+    barFill.style.width=`${Math.max(3,Math.min(100,p.ratio))}%`;
+    barFill.classList.toggle('goal-hit',goalHit);
+  }
+  goalBadge.hidden=!goalHit;
+  card.classList.toggle('goal-hit',goalHit);
   card.hidden=false;
   document.body.classList.add('has-private-card');
 }
