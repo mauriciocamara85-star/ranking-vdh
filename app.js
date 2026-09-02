@@ -569,14 +569,27 @@ function buildStoreCategoryList(field){
   if(!weekKeys.length)return{list:[],currentKey:null,prevKey:null};
   const currentKey=weekKeys[weekKeys.length-1],prevKey=weekKeys.length>1?weekKeys[weekKeys.length-2]:null;
   const realKey=field?`${field} real`:'Venta real',objKey=field?`${field} obj`:'Venta obj';
+  // TP (Ticket Promedio) y PxT son PROMEDIOS por venta, no cantidades que se acumulan — sumar el
+  // ticket promedio de cada vendedor infla el "objetivo" del local según cuánta gente tenga (4
+  // vendedores con objetivo $100K cada uno no significan que el local deba promediar $400K de
+  // ticket). El % de cumplimiento no cambia (sumar o promediar da la misma proporción), pero el
+  // real/obj en $ que se muestra debajo del % sí — con la suma salía un número que no representa
+  // nada real. Perfumes/Bóxer sí son unidades vendidas: ahí sumar es correcto y se deja igual.
+  const esPromedio=field==='TP'||field==='PxT';
   const aggregateByLocal=weekKey=>{
     const groups={};
     weekRows(weekKey).forEach(row=>{
       const local=row.Local||'Sin local';
-      if(!groups[local])groups[local]={real:0,obj:0};
+      if(!groups[local])groups[local]={real:0,obj:0,count:0};
       groups[local].real+=num(row,realKey);
       groups[local].obj+=num(row,objKey);
+      groups[local].count++;
     });
+    if(esPromedio){
+      Object.values(groups).forEach(g=>{
+        if(g.count){g.real/=g.count;g.obj/=g.count}
+      });
+    }
     return groups;
   };
   const currentAgg=aggregateByLocal(currentKey),prevAgg=prevKey?aggregateByLocal(prevKey):{};
