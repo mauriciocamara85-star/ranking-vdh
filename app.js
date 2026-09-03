@@ -261,34 +261,36 @@ function allWeekKeys(){
 }
 function weekRows(weekKey){return(state.tables.VENDEDOR_SEMANAL||[]).filter(r=>weekKeyOf(r)===weekKey)}
 // ── Vendedores compartidos entre locales (cobertura) ───────────────────
-// Personas que trabajan repartidas entre dos locales fijos (cubren un día a la semana en otro
-// local). El consolidador NO las funde — cada local sigue viendo su venta real completa (así
-// Copa Constructores/Sprint Semanal/etc. quedan bien, ver STORE_CATEGORIES arriba). Acá SÍ se
-// funden, pero solo para las vistas que rankean PERSONAS (Liga, Sprints, Mejora, Fama de
-// vendedores) — así su ranking individual refleja la venta total, no la mitad. El nombre tiene
-// que calzar EXACTO (nombre y apellido) tal cual está cargado en AMBOS locales.
-const VENDEDORES_COMPARTIDOS={
-  'Sole Lescano':['Flores','Villa del Parque']
-  // agregar acá a los próximos 2, mismo formato: 'Nombre Apellido':['Local A','Local B']
-};
+// Personas que trabajan repartidas entre locales (cubren días en otro local, incluso con cambios
+// a mitad de mes). El consolidador NO las funde — cada local sigue viendo su venta real completa
+// (así Copa Constructores/Sprint Semanal/etc. quedan bien, ver STORE_CATEGORIES arriba). Acá SÍ
+// se funden, pero solo para las vistas que rankean PERSONAS (Liga, Sprints, Mejora, Fama de
+// vendedores) — así su ranking individual refleja la venta total, no la mitad.
+//
+// Automático por nombre+apellido: si el mismo nombre aparece en más de un Local dentro de la
+// misma semana, se asume que es la misma persona cubriendo y se funden esas filas — sin lista
+// para mantener a mano (antes existía VENDEDORES_COMPARTIDOS con altas manuales; se sacó el
+// 2026-09-03 porque los cambios de cobertura son a mitad de mes y no daba tiempo a avisar). Único
+// riesgo real: si dos personas DISTINTAS del equipo llegaran a compartir nombre y apellido exacto
+// en dos locales sin relación, se fundirían por error — con nombre+apellido siempre cargado, es
+// poco probable, pero si pasa algún día hay que volver a algo explícito acá.
 function fusionarCompartidos(rows){
   const grupos={},resto=[];
   rows.forEach(row=>{
-    const locales=VENDEDORES_COMPARTIDOS[row.Vendedor];
-    if(!locales||locales.indexOf(row.Local)===-1){resto.push(row);return}
     if(!grupos[row.Vendedor])grupos[row.Vendedor]=[];
     grupos[row.Vendedor].push(row);
   });
   Object.keys(grupos).forEach(nombre=>{
     const partes=grupos[nombre];
-    if(partes.length===1){resto.push(partes[0]);return} // solo tuvo datos en un local esta semana
+    const localesDistintos=[...new Set(partes.map(r=>r.Local))];
+    if(localesDistintos.length===1){partes.forEach(p=>resto.push(p));return} // un solo local esta semana: nada que fundir
     const sumaCol=campo=>partes.reduce((s,r)=>s+num(r,campo),0);
     // TP/PxT/Conversión son PROMEDIOS, no cantidades — sumarlos infla el número (mismo criterio
     // que ya usa buildStoreCategoryList más abajo). Se recalculan ponderados por su propio peso
     // natural: Conversión por Tráfico, TP y PxT por Venta.
     const promedioCol=(campo,pesoCampo)=>{const peso=sumaCol(pesoCampo);return peso?partes.reduce((s,r)=>s+num(r,campo)*num(r,pesoCampo),0)/peso:0};
     const base={...partes[0]};
-    base.Local=VENDEDORES_COMPARTIDOS[nombre].join(' + ');
+    base.Local=localesDistintos.join(' + ');
     ['Venta obj','Venta real','Tráfico obj','Tráfico real','Perfumes obj','Perfumes real','Boxer obj','Boxer real'].forEach(c=>{base[c]=sumaCol(c)});
     base['Conv obj']=promedioCol('Conv obj','Tráfico obj');
     base['Conv real']=promedioCol('Conv real','Tráfico real');
