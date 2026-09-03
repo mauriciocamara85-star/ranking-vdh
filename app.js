@@ -241,11 +241,13 @@ const RANK_CATEGORIES={
 // $8 / $3), PxT es un promedio decimal sin signo — solo Venta/Ticket son montos en $. Sin esto se
 // mostraba "$8 / $3" en Perfumes, un bug real encontrado al verificar con captura.
 const STORE_CATEGORIES={
-  // sort:'puntos' es un caso aparte (ver renderStores/renderStorePoints): no agrega real/obj por
-  // Local como las demás — suma los puntos GP VDH que ya sacó cada vendedor del local ese mes.
+  // Copa Constructores agrega Venta real/obj del LOCAL igual que las demás (sort:'ratio') — antes
+  // sumaba los puntos GP VDH que cada vendedor del local ya había sacado (sort:'puntos'), un
+  // criterio distinto al resto de esta pestaña y más fràgil (dependía de que cada vendedor
+  // estuviera bien atribuido a su local). Ver conversación del 2026-09-03.
   // kicker es texto propio (no cfg.label.toUpperCase()) — antes el kicker repetía el título de
   // abajo tal cual, ahora describe la métrica en vez del nombre de la pestaña.
-  constructores:{label:'Copa Constructores',field:null,sort:'puntos',fmt:moneyShort,kicker:'RANKING POR LOCAL'},
+  constructores:{label:'Copa Constructores',field:null,sort:'ratio',fmt:moneyShort,kicker:'RANKING POR LOCAL'},
   sprint:{label:'Sprint Semanal',field:null,sort:'mejora',fmt:moneyShort,kicker:'RANKING SEMANAL'},
   ticket:{label:'Ticket Promedio',field:'TP',sort:'ratio',fmt:moneyShort,kicker:'PROMEDIO POR VENTA'},
   pxt:{label:'PxT',field:'PxT',sort:'ratio',fmt:decimal,kicker:'PRENDAS POR TICKET'},
@@ -258,6 +260,50 @@ function allWeekKeys(){
   return[...new Set(rows.map(weekKeyOf))].sort((a,b)=>weekKeyOrder(a)-weekKeyOrder(b));
 }
 function weekRows(weekKey){return(state.tables.VENDEDOR_SEMANAL||[]).filter(r=>weekKeyOf(r)===weekKey)}
+// ── Vendedores compartidos entre locales (cobertura) ───────────────────
+// Personas que trabajan repartidas entre dos locales fijos (cubren un día a la semana en otro
+// local). El consolidador NO las funde — cada local sigue viendo su venta real completa (así
+// Copa Constructores/Sprint Semanal/etc. quedan bien, ver STORE_CATEGORIES arriba). Acá SÍ se
+// funden, pero solo para las vistas que rankean PERSONAS (Liga, Sprints, Mejora, Fama de
+// vendedores) — así su ranking individual refleja la venta total, no la mitad. El nombre tiene
+// que calzar EXACTO (nombre y apellido) tal cual está cargado en AMBOS locales.
+const VENDEDORES_COMPARTIDOS={
+  'Soledad Pérez':['Flores','Villa del Parque']
+  // agregar acá a los próximos 2, mismo formato: 'Nombre Apellido':['Local A','Local B']
+};
+function fusionarCompartidos(rows){
+  const grupos={},resto=[];
+  rows.forEach(row=>{
+    const locales=VENDEDORES_COMPARTIDOS[row.Vendedor];
+    if(!locales||locales.indexOf(row.Local)===-1){resto.push(row);return}
+    if(!grupos[row.Vendedor])grupos[row.Vendedor]=[];
+    grupos[row.Vendedor].push(row);
+  });
+  Object.keys(grupos).forEach(nombre=>{
+    const partes=grupos[nombre];
+    if(partes.length===1){resto.push(partes[0]);return} // solo tuvo datos en un local esta semana
+    const sumaCol=campo=>partes.reduce((s,r)=>s+num(r,campo),0);
+    // TP/PxT/Conversión son PROMEDIOS, no cantidades — sumarlos infla el número (mismo criterio
+    // que ya usa buildStoreCategoryList más abajo). Se recalculan ponderados por su propio peso
+    // natural: Conversión por Tráfico, TP y PxT por Venta.
+    const promedioCol=(campo,pesoCampo)=>{const peso=sumaCol(pesoCampo);return peso?partes.reduce((s,r)=>s+num(r,campo)*num(r,pesoCampo),0)/peso:0};
+    const base={...partes[0]};
+    base.Local=VENDEDORES_COMPARTIDOS[nombre].join(' + ');
+    ['Venta obj','Venta real','Tráfico obj','Tráfico real','Perfumes obj','Perfumes real','Boxer obj','Boxer real'].forEach(c=>{base[c]=sumaCol(c)});
+    base['Conv obj']=promedioCol('Conv obj','Tráfico obj');
+    base['Conv real']=promedioCol('Conv real','Tráfico real');
+    base['TP obj']=promedioCol('TP obj','Venta obj');
+    base['TP real']=promedioCol('TP real','Venta real');
+    base['PxT obj']=promedioCol('PxT obj','Venta obj');
+    base['PxT real']=promedioCol('PxT real','Venta real');
+    resto.push(base);
+  });
+  return resto;
+}
+// Igual que weekRows(), pero fusionando vendedores compartidos — usarla en todo lo que rankee
+// PERSONAS. Lo que rankea LOCALES (buildStoreCategoryList, aggregateStoresForWeek) sigue usando
+// weekRows() crudo a propósito, para no perder su venta real en el total de cada local.
+function weekRowsPersonas(weekKey){return fusionarCompartidos(weekRows(weekKey))}
 // Empates: si dos personas quedan exactamente igual en % de cumplimiento, la posición (y por lo
 // tanto los puntos F1/Sprint que reparte esa posición) se define por mayor venta/unidad absoluta
 // real y, si también empatan ahí, alfabético — determinístico siempre, nunca "quien cargó primero
@@ -265,7 +311,7 @@ function weekRows(weekKey){return(state.tables.VENDEDOR_SEMANAL||[]).filter(r=>w
 // origen no tiene ningún criterio de negocio detrás).
 function ratioStandings(weekKey,field){
   const realKey=field?`${field} real`:'Venta real',objKey=field?`${field} obj`:'Venta obj';
-  const list=weekRows(weekKey).map(row=>{
+  const list=weekRowsPersonas(weekKey).map(row=>{
     const real=num(row,realKey),obj=num(row,objKey);
     return{local:row.Local,name:row.Vendedor,real,obj,ratio:obj?real/obj*100:null};
   }).filter(p=>p.ratio!==null);
@@ -381,25 +427,6 @@ function buildChampionship(){
   list.sort((a,b)=>(b.total-a.total)||(b.main-a.main)||String(a.name).localeCompare(String(b.name),'es'));
   return{list,month,weeks};
 }
-// Copa Constructores = versión F1 de "Constructores": la suma de los puntos GP VDH (Carrera
-// Principal + Sprints) de TODOS los vendedores de un local, mismo mes. Reusa buildChampionship()
-// (ya calculado por vendedor) en vez de recalcular puntos de cero — agrega ese mismo resultado por
-// Local. Coincide con el Reglamento ("quita de los puntos aportados al local en la Copa de
-// Constructores"), que ya asumía este sistema aunque todavía no estuviera implementado acá.
-function buildStorePointsList(){
-  const{list:sellerList,month,weeks}=buildChampionship();
-  if(!month)return{list:[],month:null,weeks:[]};
-  const totals={};
-  const ensure=local=>{if(!totals[local])totals[local]={local,main:0,sprint:0,total:0,breakdown:{ticket:0,perfumes:0,boxer:0,pxt:0}};return totals[local]};
-  sellerList.forEach(p=>{
-    const e=ensure(p.local);
-    e.main+=p.main;e.sprint+=p.sprint;e.total+=p.total;
-    e.breakdown.ticket+=p.breakdown.ticket;e.breakdown.perfumes+=p.breakdown.perfumes;e.breakdown.boxer+=p.breakdown.boxer;e.breakdown.pxt+=p.breakdown.pxt;
-  });
-  const list=Object.values(totals);
-  list.sort((a,b)=>(b.total-a.total)||(b.main-a.main)||String(a.local).localeCompare(String(b.local),'es'));
-  return{list,month,weeks};
-}
 function renderChampionship(){
   const{list,month,weeks}=buildChampionship();
   if(!month){showEmpty('Sin fecha cargada todavía.');return}
@@ -435,7 +462,7 @@ function renderChampionship(){
 // la Fama, que mira "Mayor Aceleración" de la semana YA CERRADA contra la anterior a esa — no la
 // semana en curso, que es lo que usa la pestaña normal de Mejora vía buildMejoraList() más abajo.
 function buildMejoraListFor(currentKey,prevKey){
-  const rows=state.tables.VENDEDOR_SEMANAL||[];
+  const rows=[...weekRowsPersonas(currentKey),...(prevKey?weekRowsPersonas(prevKey):[])];
   const byPerson={};
   rows.forEach(row=>{
     const key=`${row.Local}|${row.Vendedor}`,weekKey=weekKeyOf(row);
@@ -628,7 +655,6 @@ function renderStores(){
   qa('#storeCatTabs .tab').forEach(btn=>btn.classList.toggle('active',btn.dataset.storeCategory===state.storeCategory));
   $('rankKicker').textContent=cfg.kicker;
   $('rankHeading').textContent=cfg.label;
-  if(cfg.sort==='puntos'){renderStorePoints();return}
   const{list:rawList,currentKey}=buildStoreCategoryList(cfg.field);
   if(!currentKey){showEmpty('Sin semana cargada todavía.');return}
   const[mes,semana]=currentKey.split('|');
@@ -664,44 +690,6 @@ function renderStores(){
       const pts=above.ratio-p.ratio;
       const absGap=above.real-p.real;
       return absGap>0?`Estás a ${money(absGap)} (+${pts.toFixed(1)}%) de subir al puesto`:`Estás a +${pts.toFixed(1)}% de subir al puesto`;
-    }
-  });
-}
-// Copa Constructores (puntos) — mismo layout de fila y misma tarjeta privada que renderChampionship
-// (Vendedores · GP VDH), reemplazando "vendedor" por "local": el trofeo, "X pts", el desglose
-// Principal/Sprints y "Nº vendedores activos" quedan uno a uno equivalentes entre las dos vistas.
-function renderStorePoints(){
-  const{list,month,weeks}=buildStorePointsList();
-  if(!month){showEmpty('Sin fecha cargada todavía.');return}
-  $('rankPeriod').textContent=`${month} · ${weeks.length} fecha${weeks.length===1?'':'s'} corrida${weeks.length===1?'':'s'}`;
-  if(!list.length){showEmpty('Sin puntos cargados este mes todavía.');return}
-
-  const currentKey=weeks[weeks.length-1];
-  const vendorCounts=activeVendorsByLocal(currentKey);
-  const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
-  const visible=capForDisplay(filtered);
-  $('rankList').innerHTML=visible.map(p=>{
-    const i=list.indexOf(p);
-    const trophy=i===0?` ${icon('trophy','svg-icon trophy-icon')}`:'';
-    const value=`<span class="rank-value-main">${number(p.total)} pts</span>`;
-    const b=p.breakdown;
-    const sub=state.supervisor
-      ?`Principal ${p.main} · Sprints: Tk ${b.ticket} · Pf ${b.perfumes} · Bx ${b.boxer} · PxT ${b.pxt}`
-      :`Principal ${p.main} pts · Sprints ${p.sprint} pts`;
-    const vendorCount=vendorCounts[p.local]||0;
-    const extraHtml=`${vendorCount} vendedor${vendorCount===1?'':'es'} activo${vendorCount===1?'':'s'}`;
-    return rankRow(i,p.local,'',value,sub,extraHtml,trophy);
-  }).join('');
-
-  renderPrivateCard({
-    list,
-    match:p=>state.user&&p.local===state.user.local,
-    nameOf:p=>p.local,
-    progressText:p=>`${number(p.total)} pts acumulados este mes`,
-    leaderText:'¡Tu local va primero en la Copa Constructores!',
-    microText:(p,above)=>{
-      const gap=above.total-p.total;
-      return gap>0?`Tu local está a ${number(gap)} pts de subir al puesto`:'Tu local está empatado con el puesto';
     }
   });
 }
