@@ -268,7 +268,7 @@ function weekRows(weekKey){return(state.tables.VENDEDOR_SEMANAL||[]).filter(r=>w
 // vendedores) — así su ranking individual refleja la venta total, no la mitad. El nombre tiene
 // que calzar EXACTO (nombre y apellido) tal cual está cargado en AMBOS locales.
 const VENDEDORES_COMPARTIDOS={
-  'Soledad Pérez':['Flores','Villa del Parque']
+  'Sole Lescano':['Flores','Villa del Parque']
   // agregar acá a los próximos 2, mismo formato: 'Nombre Apellido':['Local A','Local B']
 };
 function fusionarCompartidos(rows){
