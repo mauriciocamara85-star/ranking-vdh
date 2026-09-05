@@ -603,8 +603,9 @@ function renderSellersCategory(category){
 }
 
 /* ── LOCALES · COPA DE CONSTRUCTORES (+ sub-pills por categoría) ─ */
-// Cuántos vendedores distintos cargaron datos ese local esa semana — "vendedores activos" de la
-// tarjeta de cada local (punto 1 del pedido).
+// Cuántos vendedores distintos cargaron datos ese local esa semana. Ya no se muestra en las
+// sub-pills de Locales (se sacó el 2026-09-05, no aportaba nada útil ahí — reemplazado por la
+// pastillita de puntos) — sigue usándose en las tarjetas de local del Salón de la Fama.
 function activeVendorsByLocal(weekKey){
   const sets={};
   weekRows(weekKey).forEach(row=>{
@@ -708,12 +709,11 @@ function buildStoreCategoryList(field){
   if(!weekKeys.length)return{list:[],currentKey:null,prevKey:null};
   const currentKey=weekKeys[weekKeys.length-1],prevKey=weekKeys.length>1?weekKeys[weekKeys.length-2]:null;
   const currentAgg=aggregateStoreMetricForWeek(currentKey,field),prevAgg=prevKey?aggregateStoreMetricForWeek(prevKey,field):{};
-  const vendorCounts=activeVendorsByLocal(currentKey);
   const list=Object.keys(currentAgg).map(local=>{
     const cur=currentAgg[local],ratio=cur.obj?cur.real/cur.obj*100:null;
     const prev=prevAgg[local],prevRatio=prev&&prev.obj?prev.real/prev.obj*100:null;
     const mejora=(ratio!==null&&prevRatio!==null)?ratio-prevRatio:null;
-    return{local,real:cur.real,obj:cur.obj,ratio,mejora,vendorCount:vendorCounts[local]||0};
+    return{local,real:cur.real,obj:cur.obj,ratio,mejora};
   });
   return{list,currentKey,prevKey};
 }
@@ -768,8 +768,13 @@ function renderStores(){
     }
     const unit=cfg.unit?` ${cfg.unit}`:'';
     const sub=p.ratio!==null?`${cfg.fmt(p.real)}${unit} / ${cfg.fmt(p.obj)}${unit}`:`${cfg.fmt(p.real)}${unit}`;
-    const extraHtml=`${p.vendorCount} vendedor${p.vendorCount===1?'':'es'} activo${p.vendorCount===1?'':'s'}`;
-    return rankRow(i,p.local,'',value,sub,extraHtml,trophy);
+    // "X vendedores activos" no aportaba nada útil acá — se cambia por la misma pastillita
+    // "+X pts GP" que ya usan estas mismas categorías del lado de Vendedores (Ticket/Perfumes/
+    // Bóxer/PxT son justo los 4 sprints que reparten SPRINT_POINTS en Copa Constructores, ver
+    // buildStoreChampionship). Sprint Semanal (sort:'mejora') no reparte puntos — no lleva badge,
+    // mismo criterio que la pestaña Mejora de Vendedores. Pedido del 2026-09-05.
+    const badge=cfg.sort==='ratio'&&i<SPRINT_POINTS.length?`<span class="sprint-badge">+${SPRINT_POINTS[i]} pts GP</span>`:'';
+    return rankRow(i,p.local,'',value,sub,badge,trophy);
   }).join('');
 
   renderPrivateCard({
