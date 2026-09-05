@@ -702,7 +702,7 @@ function storeRatioStandings(weekKey,field){
 // Ahora suma puntos semana a semana en las 5 métricas — Venta = carrera principal (top 10),
 // Ticket/PxT/Perfumes/Bóxer = sprints (top 8) — y acumula en el mes, igual que buildChampionship()
 // para vendedores: responde "cuál es el mejor local en todas las métricas", no solo quién vende
-// más esta semana puntual. Sprint Semanal no se tocó, sigue siendo la mejora semana a semana.
+// más esta semana puntual.
 function buildStoreChampionship(){
   const month=currentMonth();
   if(!month)return{list:[],month:null,weeks:[]};
