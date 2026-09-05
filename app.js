@@ -247,28 +247,29 @@ const RANK_CATEGORIES={
   pxt:{label:'PxT',field:'PxT',fmt:decimal,heading:'Prendas por ticket'}
 };
 
-// Sub-pills de "Locales" — Sprint Semanal ordena por mejora vs. la semana anterior (la pregunta
-// "quién viene subiendo más rápido", ya existía como única vista de Locales antes del cambio del
-// 2026-09-03). Ticket/PxT/Perfumes/Bóxer reusan el mismo campo real/obj que ya usan los Sprints de
-// vendedores, agregado por local en vez de por persona.
+// Sub-pills de "Locales" — todas ordenan por % de cumplimiento de la semana y muestran los mismos
+// dos elementos que ya usa Liga VDH del lado de vendedores: arriba "% (real/obj)", abajo la
+// pastillita "+X pts GP". Sprint Semanal (Venta) reusa MAIN_POINTS —es la misma carrera principal
+// que ya puntúa en Copa Constructores—; Ticket/PxT/Perfumes/Bóxer reusan SPRINT_POINTS, agregado
+// por local en vez de por persona (ver renderStores).
+// Sprint Semanal antes ordenaba por MEJORA vs. la semana anterior — se sacó el 2026-09-05: recién
+// arrancando el mes siempre decía "1ª semana" (sin nada para comparar todavía) y duplicaba
+// información que "% + puntos" ya cubre mejor. La mejora semana a semana de VENDEDORES (pestaña
+// "Mayor Mejora VDH") no se tocó, sigue con su propia lógica más abajo.
 // Copa Constructores YA NO vive acá — pasó a ser un campeonato de puntos (ver
 // buildStoreChampionship más abajo), con renderStores() derivando a renderStoreChampionship()
-// antes de tocar este objeto. Antes agregaba Venta real/obj del local igual que Sprint Semanal
-// (mismo dato con dos ordenamientos distintos, confuso: "es lo mismo que el Sprint" — pedido del
-// 2026-09-04), y antes de eso sumaba puntos GP por vendedor atribuidos a su local (más frágil,
-// dependía de la atribución vendedor→local). El campeonato nuevo retoma la idea de puntos pero
-// agregando cada métrica por LOCAL directamente, sin pasar por vendedores.
+// antes de tocar este objeto.
 // fmt define cómo se lee "real / objetivo" en la tarjeta — Perfumes/Bóxer son UNIDADES (8 / 3, no
 // $8 / $3), PxT es un promedio decimal sin signo — solo Venta/Ticket son montos en $. Sin esto se
 // mostraba "$8 / $3" en Perfumes, un bug real encontrado al verificar con captura.
 // kicker es texto propio (no cfg.label.toUpperCase()) — antes el kicker repetía el título de abajo
 // tal cual, ahora describe la métrica en vez del nombre de la pestaña.
 const STORE_CATEGORIES={
-  sprint:{label:'Sprint Semanal',field:null,sort:'mejora',fmt:moneyShort,kicker:'RANKING SEMANAL'},
-  ticket:{label:'Ticket Promedio',field:'TP',sort:'ratio',fmt:moneyShort,kicker:'PROMEDIO POR VENTA'},
-  pxt:{label:'PxT',field:'PxT',sort:'ratio',fmt:decimal,kicker:'PRENDAS POR TICKET'},
-  perfumes:{label:'Perfumes',field:'Perfumes',sort:'ratio',fmt:number,unit:'u',kicker:'VENTA CRUZADA'},
-  boxer:{label:'Bóxer',field:'Boxer',sort:'ratio',fmt:number,unit:'u',kicker:'VENTA CRUZADA'}
+  sprint:{label:'Sprint Semanal',field:null,fmt:moneyShort,kicker:'RANKING SEMANAL'},
+  ticket:{label:'Ticket Promedio',field:'TP',fmt:moneyShort,kicker:'PROMEDIO POR VENTA'},
+  pxt:{label:'PxT',field:'PxT',fmt:decimal,kicker:'PRENDAS POR TICKET'},
+  perfumes:{label:'Perfumes',field:'Perfumes',fmt:number,unit:'u',kicker:'VENTA CRUZADA'},
+  boxer:{label:'Bóxer',field:'Boxer',fmt:number,unit:'u',kicker:'VENTA CRUZADA'}
 };
 
 function allWeekKeys(){
@@ -701,41 +702,29 @@ function buildStoreChampionship(){
   list.sort((a,b)=>(b.total-a.total)||(b.main-a.main)||String(a.local).localeCompare(String(b.local),'es'));
   return{list,month,weeks};
 }
-// Une "Venta/Sprint real/obj por local" con el % de cumplimiento y la mejora vs. la semana
-// anterior — una sola función para Sprint Semanal y las 4 sub-pills de producto (Copa
-// Constructores ya no la usa, usa buildStoreChampionship de arriba).
+// Une "Venta/Sprint real/obj por local" con el % de cumplimiento — una sola función para las 5
+// sub-pills reales (Sprint Semanal + las 4 de producto; Copa Constructores usa
+// buildStoreChampionship de arriba, no esta). Ya no calcula mejora vs. la semana anterior — se
+// sacó el 2026-09-05 junto con el sort por mejora, ver comentario en STORE_CATEGORIES.
 function buildStoreCategoryList(field){
   const weekKeys=allWeekKeys();
-  if(!weekKeys.length)return{list:[],currentKey:null,prevKey:null};
-  const currentKey=weekKeys[weekKeys.length-1],prevKey=weekKeys.length>1?weekKeys[weekKeys.length-2]:null;
-  const currentAgg=aggregateStoreMetricForWeek(currentKey,field),prevAgg=prevKey?aggregateStoreMetricForWeek(prevKey,field):{};
+  if(!weekKeys.length)return{list:[],currentKey:null};
+  const currentKey=weekKeys[weekKeys.length-1];
+  const currentAgg=aggregateStoreMetricForWeek(currentKey,field);
   const list=Object.keys(currentAgg).map(local=>{
-    const cur=currentAgg[local],ratio=cur.obj?cur.real/cur.obj*100:null;
-    const prev=prevAgg[local],prevRatio=prev&&prev.obj?prev.real/prev.obj*100:null;
-    const mejora=(ratio!==null&&prevRatio!==null)?ratio-prevRatio:null;
-    return{local,real:cur.real,obj:cur.obj,ratio,mejora};
+    const cur=currentAgg[local];
+    return{local,real:cur.real,obj:cur.obj,ratio:cur.obj?cur.real/cur.obj*100:null};
   });
-  return{list,currentKey,prevKey};
+  return{list,currentKey};
 }
-function sortStoreList(list,mode){
+function sortStoreList(list){
   const arr=[...list];
-  if(mode==='mejora'){
-    arr.sort((a,b)=>{
-      if(a.mejora!==null&&b.mejora!==null){if(b.mejora!==a.mejora)return b.mejora-a.mejora}
-      else if(a.mejora!==null)return -1;
-      else if(b.mejora!==null)return 1;
-      const ar=a.ratio??-Infinity,br=b.ratio??-Infinity;
-      if(br!==ar)return br-ar;
-      return String(a.local).localeCompare(String(b.local),'es');
-    });
-  }else{
-    arr.sort((a,b)=>{
-      const ar=a.ratio??-Infinity,br=b.ratio??-Infinity;
-      if(br!==ar)return br-ar;
-      if((b.real||0)!==(a.real||0))return(b.real||0)-(a.real||0);
-      return String(a.local).localeCompare(String(b.local),'es');
-    });
-  }
+  arr.sort((a,b)=>{
+    const ar=a.ratio??-Infinity,br=b.ratio??-Infinity;
+    if(br!==ar)return br-ar;
+    if((b.real||0)!==(a.real||0))return(b.real||0)-(a.real||0);
+    return String(a.local).localeCompare(String(b.local),'es');
+  });
   return arr;
 }
 function renderStores(){
@@ -753,28 +742,25 @@ function renderStores(){
   $('rankPeriod').textContent=`Semana ${semana} de ${mes}`;
   if(!rawList.length){showEmpty('Sin locales para este filtro.');return}
 
-  const list=sortStoreList(rawList,cfg.sort);
+  const list=sortStoreList(rawList);
   const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
   const visible=capForDisplay(filtered);
+  // Mismo layout que Liga VDH del lado de Vendedores: arriba "% (real/obj)" en una sola línea,
+  // abajo la pastillita "+X pts GP" — antes acá arriba iba el % solo y abajo el real/obj, con
+  // "X vendedores activos" (o, en Sprint Semanal, "1ª semana") como dato aparte; ninguna de las
+  // dos cosas aportaba tanto como ver de una el puntaje. Sprint Semanal (field null → Venta) usa
+  // MAIN_POINTS, la misma carrera principal que ya puntúa en Copa Constructores; las 4 de producto
+  // usan SPRINT_POINTS. Pedido del 2026-09-05.
+  const pointsTable=cfg.field?SPRINT_POINTS:MAIN_POINTS;
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
     const trophy=i===0?` ${icon('trophy','svg-icon trophy-icon')}`:'';
-    let value;
-    if(cfg.sort==='mejora'){
-      const trend=p.mejora===null?'':p.mejora>0?' <span class="trend positive">▲</span>':p.mejora<0?' <span class="trend negative">▼</span>':' <span class="trend">■</span>';
-      value=p.mejora!==null?`<span class="${p.mejora>=0?'positive':'negative'}">${p.mejora>=0?'+':''}${p.mejora.toFixed(1)} pts</span>${trend}`:'<span style="color:var(--muted)">1ª semana</span>';
-    }else{
-      value=p.ratio!==null?`<span class="rank-value-main">${percent(p.ratio)}</span>`:'<span style="color:var(--muted)">Sin objetivo</span>';
-    }
     const unit=cfg.unit?` ${cfg.unit}`:'';
-    const sub=p.ratio!==null?`${cfg.fmt(p.real)}${unit} / ${cfg.fmt(p.obj)}${unit}`:`${cfg.fmt(p.real)}${unit}`;
-    // "X vendedores activos" no aportaba nada útil acá — se cambia por la misma pastillita
-    // "+X pts GP" que ya usan estas mismas categorías del lado de Vendedores (Ticket/Perfumes/
-    // Bóxer/PxT son justo los 4 sprints que reparten SPRINT_POINTS en Copa Constructores, ver
-    // buildStoreChampionship). Sprint Semanal (sort:'mejora') no reparte puntos — no lleva badge,
-    // mismo criterio que la pestaña Mejora de Vendedores. Pedido del 2026-09-05.
-    const badge=cfg.sort==='ratio'&&i<SPRINT_POINTS.length?`<span class="sprint-badge">+${SPRINT_POINTS[i]} pts GP</span>`:'';
-    return rankRow(i,p.local,'',value,sub,badge,trophy);
+    const value=p.ratio!==null
+      ?`<span class="rank-value-main">${percent(p.ratio)}</span> <span class="rank-value-ctx">(${cfg.fmt(p.real)}/${cfg.fmt(p.obj)}${unit})</span>`
+      :'<span style="color:var(--muted)">Sin objetivo</span>';
+    const badge=i<pointsTable.length?`<span class="sprint-badge">+${pointsTable[i]} pts GP</span>`:'';
+    return rankRow(i,p.local,'',value,badge,'',trophy);
   }).join('');
 
   renderPrivateCard({
