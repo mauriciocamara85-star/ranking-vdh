@@ -628,43 +628,30 @@ function activeVendorsByLocal(weekKey){
 // igual — el promedio derecho de los 4 días con dato sí cierra exacto). Se usa "Tráfico" como
 // fuente de verdad porque ya es lo que el local ve todos los días, no un cálculo nuevo que compita
 // con ese número.
-// PxT no tiene un dato diario por local (esa columna solo existe a nivel vendedor), así que sigue
-// saliendo de VENDEDOR_SEMANAL — pero ahora ponderado por los tickets reales de cada vendedor
-// (derivados de Venta/TP por vendedor) en vez de dividir por cantidad de vendedores, mismo defecto
-// que tenía Ticket Promedio.
+// PxT (Prendas por Ticket) también sale de LOCAL_DIARIO desde el 2026-09-05 — el consolidador
+// (v9) ahora exporta "PxT real"/"PxT obj" ahí, calculados en la propia hoja "Tráfico" del local
+// (Q Prendas / Q Líneas, la misma cuenta que ya se mira todos los días) en vez de derivarlo de
+// VENDEDOR_SEMANAL ponderando por vendedor — ese cálculo por vendedor daba 2,7-2,8 en Rivadavia
+// contra el 2,41 real de Tráfico, una diferencia real por vendedores con TP mal cargado. Es un
+// valor mensual (como Ticket obj/Conv obj), se repite igual en cada día del mes, así que el
+// promedio simple por día da directamente ese mismo número — mismo criterio que Ticket Promedio.
 // Perfumes/Bóxer/Venta son cantidades reales — ahí sumar sigue siendo correcto.
-// Ver conversación del 2026-09-04.
+// Ver conversación del 2026-09-04 y 2026-09-05.
 function aggregateStoreMetricForWeek(weekKey,field){
-  if(field==='TP'){
+  if(field==='TP'||field==='PxT'){
+    const realKey=field==='TP'?'Ticket prom.':'PxT real',objKey=field==='TP'?'Ticket obj':'PxT obj';
     const groups={};
     localDiarioWeekRows(weekKey).forEach(row=>{
       const local=row.Local||'Sin local';
       if(!groups[local])groups[local]={sumReal:0,countReal:0,sumObj:0,countObj:0};
       const g=groups[local];
-      const tpReal=num(row,'Ticket prom.'),tpObj=num(row,'Ticket obj');
-      if(tpReal){g.sumReal+=tpReal;g.countReal++}
-      if(tpObj){g.sumObj+=tpObj;g.countObj++}
+      const valReal=num(row,realKey),valObj=num(row,objKey);
+      if(valReal){g.sumReal+=valReal;g.countReal++}
+      if(valObj){g.sumObj+=valObj;g.countObj++}
     });
     return Object.fromEntries(Object.entries(groups).map(([local,g])=>[local,{
       real:g.countReal?g.sumReal/g.countReal:0,
       obj:g.countObj?g.sumObj/g.countObj:0
-    }]));
-  }
-  if(field==='PxT'){
-    const groups={};
-    weekRows(weekKey).forEach(row=>{
-      const local=row.Local||'Sin local';
-      if(!groups[local])groups[local]={prendasReal:0,ticketsReal:0,prendasObj:0,ticketsObj:0};
-      const g=groups[local];
-      const ventaReal=num(row,'Venta real'),tpReal=num(row,'TP real'),pxtReal=num(row,'PxT real');
-      const ventaObj=num(row,'Venta obj'),tpObj=num(row,'TP obj'),pxtObj=num(row,'PxT obj');
-      const ticketsReal=tpReal?ventaReal/tpReal:0,ticketsObj=tpObj?ventaObj/tpObj:0;
-      g.prendasReal+=pxtReal*ticketsReal;g.ticketsReal+=ticketsReal;
-      g.prendasObj+=pxtObj*ticketsObj;g.ticketsObj+=ticketsObj;
-    });
-    return Object.fromEntries(Object.entries(groups).map(([local,g])=>[local,{
-      real:g.ticketsReal?g.prendasReal/g.ticketsReal:0,
-      obj:g.ticketsObj?g.prendasObj/g.ticketsObj:0
     }]));
   }
   const realKey=field?`${field} real`:'Venta real',objKey=field?`${field} obj`:'Venta obj';
