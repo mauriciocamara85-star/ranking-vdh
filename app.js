@@ -637,9 +637,28 @@ function activeVendorsByLocal(weekKey){
 // contra el 2,41 real de Tráfico, una diferencia real por vendedores con TP mal cargado. Es un
 // valor mensual (como Ticket obj/Conv obj), se repite igual en cada día del mes, así que el
 // promedio simple por día da directamente ese mismo número — mismo criterio que Ticket Promedio.
-// Perfumes/Bóxer/Venta son cantidades reales — ahí sumar sigue siendo correcto.
+// Venta (field null — Sprint Semanal y la carrera principal de Copa Constructores) también sale
+// de LOCAL_DIARIO desde el 2026-09-05, NO de sumar "Venta obj"/"Venta real" de cada vendedor en
+// VENDEDOR_SEMANAL. Motivo real, encontrado con Rivadavia: el objetivo semanal de cada vendedor en
+// "Informe Vendedor" sale de prorratear SU % de objetivo mensual, y esos porcentajes entre los 5
+// vendedores de un local pueden sumar más del 100% del objetivo mensual (pasa en Rivadavia) — al
+// sumarlos por local, el objetivo semanal quedaba inflado ($6,44M calculado contra $5,53M real,
+// el que ya muestra la hoja de Ventas). Con LOCAL_DIARIO no hay ese problema: es el Objetivo/Venta
+// real del LOCAL día a día, tal cual los carga Ventas, sin pasar por el prorrateo por vendedor.
+// Perfumes/Bóxer sí siguen sumando de VENDEDOR_SEMANAL: son cantidades reales (no objetivos
+// prorrateados) y no tienen un equivalente por local en LOCAL_DIARIO.
 // Ver conversación del 2026-09-04 y 2026-09-05.
 function aggregateStoreMetricForWeek(weekKey,field){
+  if(field===null){
+    const groups={};
+    localDiarioWeekRows(weekKey).forEach(row=>{
+      const local=row.Local||'Sin local';
+      if(!groups[local])groups[local]={real:0,obj:0};
+      groups[local].real+=num(row,'Venta real');
+      groups[local].obj+=num(row,'Objetivo');
+    });
+    return groups;
+  }
   if(field==='TP'||field==='PxT'){
     const realKey=field==='TP'?'Ticket prom.':'PxT real',objKey=field==='TP'?'Ticket obj':'PxT obj';
     const groups={};
@@ -656,7 +675,9 @@ function aggregateStoreMetricForWeek(weekKey,field){
       obj:g.countObj?g.sumObj/g.countObj:0
     }]));
   }
-  const realKey=field?`${field} real`:'Venta real',objKey=field?`${field} obj`:'Venta obj';
+  // Solo llega acá Perfumes/Bóxer (Venta/TP/PxT ya se resolvieron arriba) — cantidades reales,
+  // sumarlas por vendedor sigue siendo correcto.
+  const realKey=`${field} real`,objKey=`${field} obj`;
   const groups={};
   weekRows(weekKey).forEach(row=>{
     const local=row.Local||'Sin local';
@@ -864,7 +885,10 @@ function renderHome(){
     return;
   }
 
-  const totals=weekRows(currentKey).reduce((acc,row)=>{acc.real+=num(row,'Venta real');acc.obj+=num(row,'Venta obj');return acc},{real:0,obj:0});
+  // Venta objetivo de la EMPRESA sale de LOCAL_DIARIO (Objetivo de cada local, sumado), no de sumar
+  // "Venta obj" por vendedor — mismo motivo que aggregateStoreMetricForWeek(weekKey,null): esa suma
+  // puede inflarse si los % de objetivo mensual de los vendedores de un local pasan el 100%.
+  const totals=localDiarioWeekRows(currentKey).reduce((acc,row)=>{acc.real+=num(row,'Venta real');acc.obj+=num(row,'Objetivo');return acc},{real:0,obj:0});
   const ratio=totals.obj?totals.real/totals.obj*100:null;
   const leaderSeller=sellers[0]||null,leaderStore=stores[0]||null;
 
@@ -919,13 +943,11 @@ function initialsOf(name){
 // título de esta sección decía "Copa Constructores", así que se renombró para no repetir la misma
 // confusión ("es lo mismo que...") que motivó el cambio. Ver conversación del 2026-09-04.
 function aggregateStoresForWeek(weekKey){
-  const groups={};
-  weekRows(weekKey).forEach(row=>{
-    const local=row.Local||'Sin local';
-    if(!groups[local])groups[local]={real:0,obj:0};
-    groups[local].real+=num(row,'Venta real');
-    groups[local].obj+=num(row,'Venta obj');
-  });
+  // Reusa aggregateStoreMetricForWeek(weekKey,null) — Venta del LOCAL desde LOCAL_DIARIO, no
+  // sumando "Venta obj" por vendedor (ver comentario largo ahí arriba: sumar por vendedor podía
+  // inflar el objetivo del local si los % de objetivo mensual de sus vendedores sumaban más de
+  // 100%, como pasaba en Rivadavia).
+  const groups=aggregateStoreMetricForWeek(weekKey,null);
   const vendorCounts=activeVendorsByLocal(weekKey);
   const list=Object.entries(groups).map(([local,g])=>({local,real:g.real,obj:g.obj,ratio:g.obj?g.real/g.obj*100:null,vendorCount:vendorCounts[local]||0}));
   list.sort((a,b)=>{const ar=a.ratio??-Infinity,br=b.ratio??-Infinity;if(br!==ar)return br-ar;return String(a.local).localeCompare(String(b.local),'es')});
