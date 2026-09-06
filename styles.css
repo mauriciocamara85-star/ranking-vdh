@@ -534,7 +534,10 @@ input.identity-select{background-image:none;letter-spacing:4px}
   .reglas-intro,.reglas-intro-sanciones{grid-column:1/-1}
   .fama-section-title,.fama-podium{margin-left:24px;margin-right:24px}
   .fama-store-row,.fama-highlight-grid{margin-left:24px;margin-right:24px}
-  .fama-highlight-grid{grid-template-columns:repeat(3,1fr)}
+  /* auto-fit en vez de un 3 fijo: ahora son 5 tarjetas (se sumaron las 2 de "Mayor Venta"), y
+     así se acomodan solas sin dejar un hueco vacío en la última fila ni requerir tocar este
+     número cada vez que se agregue/saque un highlight. */
+  .fama-highlight-grid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
   /* Podio clásico: 2° y 3° pasan a ser hijos directos de la grilla (display:contents) para poder
      reordenar con 1° en el medio y un poco más alto — el look de "banner" pedido para proyectar. */
   .fama-podium{display:grid;grid-template-columns:1fr 1.18fr 1fr;align-items:end;gap:14px}

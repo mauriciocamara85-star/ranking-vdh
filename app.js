@@ -1055,6 +1055,16 @@ function famaHighlightDualCard(title,perfumesTop,boxerTop){
     </div>
   </div>`;
 }
+// Mismo look que famaHighlightCard, pero para un LOCAL (identidad = local, no name+local como en
+// un vendedor) — mismo patrón que ya separa famaPodiumCard/famaStoreCard para persona vs. local.
+function famaHighlightStoreCard(title,store,valueFn){
+  if(!store)return`<div class="fama-highlight-card"><span class="fama-highlight-title">${title}</span><span class="fama-highlight-empty">Sin datos esta semana</span></div>`;
+  return`<div class="fama-highlight-card">
+    <span class="fama-highlight-title">${title}</span>
+    <span class="fama-highlight-name">${escapeHtml(store.local)}</span>
+    <span class="fama-highlight-sub">${valueFn(store)}</span>
+  </div>`;
+}
 function renderFama(){
   $('rankKicker').textContent='SALÓN DE LA FAMA';
   $('rankHeading').textContent='Podio de la semana';
@@ -1066,13 +1076,23 @@ function renderFama(){
   const[mes,semana]=famaKey.split('|');
   $('rankPeriod').textContent=`Semana ${semana} de ${mes} · cerrada`;
 
-  const sellerTop=ratioStandings(famaKey,null).slice(0,3);
-  const storeTop=aggregateStoresForWeek(famaKey).slice(0,3);
+  const sellersOfWeek=ratioStandings(famaKey,null);
+  const storesOfWeek=aggregateStoresForWeek(famaKey);
+  const sellerTop=sellersOfWeek.slice(0,3);
+  const storeTop=storesOfWeek.slice(0,3);
   const tpTop=ratioStandings(famaKey,'TP')[0]||null;
   const perfumesTop=ratioStandings(famaKey,'Perfumes')[0]||null;
   const boxerTop=ratioStandings(famaKey,'Boxer')[0]||null;
   const mejoraList=famaPrevKey?buildMejoraListFor(famaKey,famaPrevKey):[];
   const aceleracionTop=mejoraList.filter(p=>p.mejora!==null).sort((a,b)=>b.mejora-a.mejora)[0]||null;
+  // Mayor venta en $ CRUDO (no % de cumplimiento) — a propósito solo como dato informativo acá, sin
+  // ranking de 15 puestos ni puntos GP: un local grande (más tráfico/más vendedores) va a ganar esto
+  // siempre, sea cual sea el esfuerzo relativo de cada quien — justo lo que el resto de la app evita
+  // midiendo todo por % del objetivo. Como highlight suelto, es un dato de negocio legítimo (quién
+  // genera más facturación) sin instalar una competencia que ya se sabe quién gana. Pedido del
+  // usuario, conversación del 2026-09-06.
+  const vendorMayorVenta=[...sellersOfWeek].sort((a,b)=>b.real-a.real)[0]||null;
+  const localMayorVenta=[...storesOfWeek].sort((a,b)=>b.real-a.real)[0]||null;
 
   // Todo el contenido de Fama va DENTRO de un único wrapper — #rankList en desktop es
   // display:grid (pensado para las filas normales del ranking), y sin este wrapper cada sección
@@ -1090,6 +1110,8 @@ function renderFama(){
       ${famaHighlightCard(`${icon('crown','svg-icon text-icon')}Rey del TP`,tpTop,p=>money(p.real))}
       ${famaHighlightDualCard(`${icon('sparkles','svg-icon text-icon')}Perfumes · ${icon('shirt','svg-icon text-icon')}Bóxers`,perfumesTop,boxerTop)}
       ${famaHighlightCard(`${icon('rocket','svg-icon text-icon')}Mayor Aceleración`,aceleracionTop,p=>`+${p.mejora.toFixed(1)} pts`)}
+      ${famaHighlightCard(`${icon('banknote','svg-icon text-icon')}Mayor Venta · Vendedor`,vendorMayorVenta,p=>money(p.real))}
+      ${famaHighlightStoreCard(`${icon('banknote','svg-icon text-icon')}Mayor Venta · Local`,localMayorVenta,s=>money(s.real))}
     </div>
   </div>`;
   $('privateCard').hidden=true;
