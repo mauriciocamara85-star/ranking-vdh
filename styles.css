@@ -12,6 +12,9 @@ body{
   background:var(--ink);color:var(--white);font-family:var(--sans);
   -webkit-font-smoothing:antialiased;min-height:100vh;
   padding-bottom:env(safe-area-inset-bottom);
+  /* Evita que el pull-to-refresh NATIVO del navegador (Chrome/Android) compita con el propio (ver
+     initPullToRefresh en app.js) — sin esto, tirar hacia abajo puede disparar los dos a la vez. */
+  overscroll-behavior-y:contain;
 }
 .wrap{max-width:640px;margin:0 auto;padding:0 0 40px}
 
@@ -79,7 +82,9 @@ body{
   background:var(--coral);color:#1b120b;
   padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;
   font:700 12.5px var(--sans);text-align:center;
+  transform:translateY(-100%);opacity:0;transition:transform .3s ease,opacity .3s ease;
 }
+.update-banner.open{transform:translateY(0);opacity:1}
 .update-banner button{
   flex-shrink:0;height:28px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(27,18,11,.35);
   background:#1b120b;color:#fff;font:700 11.5px var(--sans);cursor:pointer;
@@ -106,18 +111,56 @@ body{
   background:transparent;color:var(--amber);font:600 10.5px var(--sans);cursor:pointer;
 }
 
+/* ── AVISO DE SINCRONIZACIÓN FALLIDA (mismo patrón visual que supervisor-badge, en rojo) ──────
+   Se prende cuando loadData() falla PERO ya había datos buenos en pantalla (ver app.js) — a
+   propósito no reemplaza la lista, solo avisa arriba y deja reintentar sin perder lo que ya se
+   estaba mirando. */
+.sync-banner{
+  margin:8px 16px 0;padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--red);
+  background:rgba(248,113,113,.12);color:var(--red);font:600 11px var(--sans);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+.sync-banner button{
+  flex-shrink:0;height:24px;padding:0 10px;border-radius:var(--radius-pill);border:1px solid var(--red);
+  background:transparent;color:var(--red);font:600 10.5px var(--sans);cursor:pointer;touch-action:manipulation;
+}
+.sync-banner button:active{transform:scale(.94)}
+
 /* ── TABS ────────────────────────────────────────────────── */
 /* width:100% (no solo max-width) es necesario acá: un flex container con overflow-x:auto calcula
    su propio ancho por "shrink-to-fit" — sin esto, la fila de tabs se ensancha para acomodar TODOS
    los botones (flex:none no encogen) en vez de quedarse en el ancho del padre y scrollear puertas
    adentro. Confirmado con getBoundingClientRect(): sin este fix, el <body> entero medía 504px en
    un viewport de 390px porque una fila de tabs empujaba a toda la página. */
-.tabs{display:flex;width:100%;gap:6px;overflow-x:auto;padding:8px 16px 0;scrollbar-width:none}
+/* Degradé en los bordes ("scroll shadows") que avisa que hay más píldoras fuera de pantalla — con
+   7 categorías en Vendedores y el scrollbar oculto, antes nada indicaba que "PxT" existía más allá
+   del borde salvo tropezar con el swipe. Truco de fondos superpuestos (sin JS): dos degradés
+   "tapa" con background-attachment:local (se mueven CON el contenido — cuando el scroll llega al
+   principio/final, tapan la sombra de ESE lado) sobre dos "sombra" con attachment:scroll (fijas
+   respecto al contenedor). El resultado se auto-ajusta solo: no aparece ningún degradé si la fila
+   entra entera (nada para tapar), y desaparece del lado que ya se scrolleó del todo. */
+.tabs{
+  display:flex;width:100%;gap:6px;overflow-x:auto;padding:8px 16px 0;scrollbar-width:none;
+  background-color:var(--ink);background-repeat:no-repeat;
+  background-image:
+    linear-gradient(to right,var(--ink) 50%,transparent),
+    linear-gradient(to left,var(--ink) 50%,transparent),
+    radial-gradient(farthest-side at 0% 50%,rgba(0,0,0,.35),transparent),
+    radial-gradient(farthest-side at 100% 50%,rgba(0,0,0,.35),transparent);
+  background-position:left,right,left,right;
+  background-size:24px 100%,24px 100%,10px 100%,10px 100%;
+  background-attachment:local,local,scroll,scroll;
+}
 .tabs::-webkit-scrollbar{display:none}
 .tab{
   flex:none;height:27px;padding:0 12px;border:1px solid var(--line);border-radius:var(--radius-pill);
   background:var(--card);color:var(--muted);font:600 11.5px var(--sans);white-space:nowrap;
+  transition:transform .15s ease;touch-action:manipulation;
 }
+/* Era el único botón de toda la app sin feedback al tocar (refresh-btn, drawer-close, bottom-nav,
+   home-card y private-change ya lo tenían) — y es el control más tocado de las 2 pantallas
+   principales (Vendedores/Locales). */
+.tab:active{transform:scale(.92)}
 .tab.active{background:var(--coral);border-color:var(--coral);color:#1b120b}
 .scope-tabs{padding-top:8px}
 .cat-tabs{padding-top:6px}
@@ -139,13 +182,23 @@ body{
 .bottom-nav-item.active{color:var(--coral)}
 .bottom-nav-item:active{transform:scale(.94)}
 
-.drawer-backdrop{position:fixed;inset:0;z-index:30;background:rgba(4,8,16,.6);backdrop-filter:blur(2px)}
+/* Antes se mostraban/ocultaban con "hidden" a secas → display:none no anima, aparecían y
+   desaparecían de un corte. Ahora arrancan en su posición "afuera" (backdrop transparente, panel
+   corrido a la derecha) y openSheet()/closeSheet() (ver app.js) agregan/sacan ".open", que es lo
+   que dispara la transición hacia/desde la posición visible. */
+.drawer-backdrop{
+  position:fixed;inset:0;z-index:30;background:rgba(4,8,16,.6);backdrop-filter:blur(2px);
+  opacity:0;transition:opacity .28s ease;
+}
+.drawer-backdrop.open{opacity:1}
 .drawer-panel{
   position:fixed;top:0;right:0;bottom:0;z-index:31;width:min(84vw,340px);
   background:var(--card);border-left:1px solid var(--line);
   display:flex;flex-direction:column;
-  transform:translateX(0);box-shadow:-14px 0 40px rgba(0,0,0,.4);
+  transform:translateX(100%);transition:transform .28s cubic-bezier(.32,.72,0,1);
+  box-shadow:-14px 0 40px rgba(0,0,0,.4);
 }
+.drawer-panel.open{transform:translateX(0)}
 .drawer-head{
   display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top) + 16px) 16px 14px;
   border-bottom:1px solid var(--line);font:700 14px var(--display);flex-shrink:0;
@@ -187,7 +240,6 @@ body{
 .text-icon{margin-right:5px}
 .tab-icon{margin-right:5px}
 .reglas-title-icon{margin-right:7px;color:var(--coral)}
-.trophy-icon{color:var(--coral)}
 /* Medallas: color por posición en vez del tono propio que traía el emoji 🥇🥈🥉 — sin esto las
    3 se verían idénticas (heredarían el gris de .rank-medal-pos/.fama-medal). */
 .medal-gold{color:var(--amber)}
@@ -272,6 +324,38 @@ body{
 
 .state-msg{margin:40px 16px;padding:24px;text-align:center;color:var(--muted);font-size:13px;background:var(--card);border:1px dashed var(--line);border-radius:var(--radius)}
 .state-msg strong{display:block;color:var(--white);font-size:14px;margin-bottom:4px}
+.state-msg-icon{width:22px;height:22px;display:block;margin:0 auto 10px;color:var(--muted)}
+/* Antes "sin resultados para este filtro" y "no se pudo conectar" se veían IDÉNTICOS (mismo cuadro
+   punteado gris) — nada distinguía de un vistazo un filtro vacío de una falla real. Acá el error
+   pasa a borde sólido rojo + ícono de alerta + botón de acción; el vacío se queda neutro (con
+   ícono de lupa, agregado en showEmpty()). */
+.state-msg-error{border-style:solid;border-color:var(--red)}
+.state-msg-error .state-msg-icon{color:var(--red)}
+.state-msg-error strong{color:var(--red)}
+.state-msg-retry{
+  display:inline-block;margin-top:14px;height:34px;padding:0 16px;border-radius:var(--radius-pill);
+  border:1px solid var(--red);background:transparent;color:var(--red);font:700 12px var(--sans);
+  cursor:pointer;touch-action:manipulation;
+}
+.state-msg-retry:active{transform:scale(.95)}
+
+/* ── ESQUELETO DE CARGA (reemplaza el "Cargando…" de texto plano) ─────────────────────────────
+   Misma forma que .rank-row (medalla + 2 líneas de texto + valor) para que desde el primer
+   instante se note que ahí va una LISTA, no una pantalla en blanco a la espera. El pulso respeta
+   prefers-reduced-motion vía la regla global de arriba del archivo (fuerza animation-duration a
+   ~0), no hace falta repetirlo acá. */
+@keyframes skeletonPulse{0%,100%{opacity:.5}50%{opacity:.85}}
+.skeleton-row{
+  display:grid;grid-template-columns:30px 1fr auto;align-items:center;gap:10px;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 12px;
+}
+.skeleton-block{background:var(--line);border-radius:6px;animation:skeletonPulse 1.1s ease-in-out infinite}
+.skeleton-pos{width:18px;height:18px;border-radius:50%;justify-self:center}
+.skeleton-line{height:10px}
+.skeleton-line.w60{width:60%}
+.skeleton-line.w40{width:40%;margin-top:6px}
+.skeleton-value{width:44px;height:14px;margin-left:auto}
+.skeleton-sub{width:30px;height:9px;margin-left:auto;margin-top:6px}
 
 .footer-note{text-align:center;color:var(--muted);font-size:10px;padding:20px 16px 0}
 
@@ -322,11 +406,18 @@ body.has-private-card{padding-bottom:96px}
 .identity-modal{
   position:fixed;inset:0;z-index:30;background:rgba(4,8,16,.72);backdrop-filter:blur(3px);
   display:flex;align-items:flex-end;justify-content:center;
+  opacity:0;transition:opacity .25s ease;
 }
+.identity-modal.open{opacity:1}
+/* La tarjeta ya tenía pinta de bottom-sheet nativo (esquinas redondeadas solo arriba, pegada abajo
+   de todo) pero aparecía de un salto — rompía la convención que su propia forma prometía. Ahora
+   arranca corrida hacia abajo (translateY 100%) y openSheet()/closeSheet() la traen deslizando. */
 .identity-card{
   position:relative;width:100%;max-width:480px;background:var(--card);border:1px solid var(--line);
   border-radius:20px 20px 0 0;padding:26px 20px calc(env(safe-area-inset-bottom) + 22px);
+  transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1);
 }
+.identity-modal.open .identity-card{transform:translateY(0)}
 .identity-close{
   position:absolute;top:14px;right:14px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);
   background:transparent;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;
@@ -465,6 +556,25 @@ input.identity-select{background-image:none;letter-spacing:4px}
   body.has-private-card{padding-bottom:166px}
   .private-card{bottom:66px}
 }
+
+/* ── PULL-TO-REFRESH (indicador flotante, ver initPullToRefresh en app.js) ───────────────────── */
+.ptr-indicator{
+  position:fixed;top:calc(env(safe-area-inset-top) + 6px);left:50%;
+  width:34px;height:34px;border-radius:50%;
+  background:var(--card);border:1px solid var(--line);color:var(--muted);
+  display:flex;align-items:center;justify-content:center;
+  transform:translate(-50%,-60px);opacity:0;
+  transition:opacity .15s ease,border-color .15s ease,color .15s ease;
+  z-index:15;pointer-events:none;box-shadow:0 6px 16px rgba(0,0,0,.25);
+}
+/* Durante el arrastre el transform lo pisa app.js a mano en cada frame (debe seguir al dedo 1:1,
+   sin lag) — .snap solo se agrega en los momentos de "soltar" (con o sin refresh disparado), para
+   que ESE retorno puntual sí se sienta con inercia en vez de un salto seco. */
+.ptr-indicator.snap{transition:transform .25s ease,opacity .15s ease,border-color .15s ease,color .15s ease}
+.ptr-indicator svg{width:16px;height:16px}
+.ptr-indicator.show{opacity:1}
+.ptr-indicator.ready{border-color:var(--coral);color:var(--coral)}
+.ptr-indicator.spin svg{animation:spin .7s linear infinite}
 
 /* ── LIGHT MODE (elegido a mano con el toggle Tema, no automático) ─ */
 html[data-theme="light"]{

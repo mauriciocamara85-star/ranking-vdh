@@ -93,9 +93,32 @@ const ICONS={
   sparkles:'<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>',
   shirt:'<path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/>',
   rocket:'<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
-  checkCircle:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>'
+  checkCircle:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  alertTriangle:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'
 };
 function icon(name,cls){return`<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]||''}</svg>`}
+
+/* ── APERTURA/CIERRE ANIMADO DE HOJAS (drawer, modal de identidad, PIN, banner de update) ──
+   Todas comparten el mismo problema: se mostraban/ocultaban alternando el atributo "hidden", que
+   mapea a display:none (ver [hidden]{display:none!important} arriba) — display:none no transiciona,
+   así que aparecían y desaparecían de un corte en vez de deslizar/desvanecer como corresponde a algo
+   con pinta de bottom-sheet o panel lateral. openSheet saca "hidden" primero, fuerza un reflow
+   (leer offsetHeight) para que el navegador registre ESE estado inicial antes de agregar ".open"
+   —si no, ambos cambios se pisan en el mismo frame y la transición nunca dispara— recién ahí agrega
+   ".open", que es la clase que cada componente anima en su propio CSS. closeSheet hace el camino
+   inverso: saca ".open" (arranca la transición de salida) y recién cuando termina (mismo tiempo que
+   declara el CSS) vuelve a poner "hidden", para no dejar el elemento tapando/tocable mientras
+   todavía está terminando de irse. El guard del setTimeout evita que un reabrir rápido (cerrar y
+   volver a abrir antes de que termine la salida) se pise con el hidden viejo. */
+function openSheet(el){
+  el.hidden=false;
+  el.offsetHeight; // fuerza reflow
+  el.classList.add('open');
+}
+function closeSheet(el,duration){
+  el.classList.remove('open');
+  setTimeout(()=>{if(!el.classList.contains('open'))el.hidden=true},duration??300);
+}
 
 /* ── IDENTIDAD DE VENDEDOR (localStorage, sin usuario ni clave) ─ */
 function loadUser(){try{const raw=localStorage.getItem(USER_KEY);const parsed=raw?JSON.parse(raw):null;return(parsed&&parsed.local&&parsed.vendedor)?parsed:null}catch{return null}}
@@ -143,9 +166,9 @@ function openIdentityModal(mode){
     vendorSelect.value=vendors.includes(state.user.vendedor)?state.user.vendedor:'';
   }
   updateIdentityConfirm();
-  modal.hidden=false;
+  openSheet(modal);
 }
-function closeIdentityModal(){$('identityModal').hidden=true}
+function closeIdentityModal(){closeSheet($('identityModal'))}
 function fillIdentityVendors(){
   const local=$('identityLocal').value;
   const vendorSelect=$('identityVendor');
@@ -212,16 +235,16 @@ $('supervisorChip').addEventListener('click',()=>{
   }else{
     $('pinInput').value='';
     $('pinError').hidden=true;
-    $('pinModal').hidden=false;
+    openSheet($('pinModal'));
     $('pinInput').focus();
   }
 });
-$('pinCancel').addEventListener('click',()=>{$('pinModal').hidden=true});
+$('pinCancel').addEventListener('click',()=>{closeSheet($('pinModal'))});
 $('pinConfirm').addEventListener('click',()=>{
   if($('pinInput').value===SUPERVISOR_PIN){
     state.supervisor=true;
     setSupervisorFlag(true);
-    $('pinModal').hidden=true;
+    closeSheet($('pinModal'));
     renderSupervisorChip();
     render();
   }else{
@@ -343,11 +366,41 @@ function ratioStandings(weekKey,field){
   return list;
 }
 
+// Mensaje SIEMPRE en español y sin exponer texto crudo del navegador ("Failed to fetch", nombres
+// de excepción en inglés, etc.) — antes error.message se mostraba tal cual para cualquier falla
+// que no fuera el timeout explícito, justo en el peor momento para que alguien no técnico del
+// local lea algo en inglés en la pantalla.
+function friendlyErrorMessage(error,timedOut){
+  if(timedOut)return'El consolidador tardó demasiado en responder (más de 20s). Probá de nuevo.';
+  if(error instanceof TypeError)return'No hay conexión a internet. Revisá el wifi o los datos móviles.';
+  if(typeof error?.message==='string'&&error.message.startsWith('HTTP '))return`El consolidador respondió con un error (${error.message.slice(5)}). Probá de nuevo en un rato.`;
+  return'Ocurrió un error inesperado. Probá de nuevo en un rato.';
+}
+function showSyncBanner(message){
+  $('syncBannerText').textContent=message;
+  $('syncBanner').hidden=false;
+}
+function hideSyncBanner(){$('syncBanner').hidden=true}
+
+// Placeholder de carga con la MISMA forma que rankRow (medalla + nombre + valor) en vez de un
+// texto centrado — se ve de entrada que ahí va a aparecer una lista, no una pantalla en blanco.
+function skeletonRows(n){
+  return Array.from({length:n||6}).map(()=>`<div class="skeleton-row">
+    <div class="skeleton-block skeleton-pos"></div>
+    <div><div class="skeleton-block skeleton-line w60"></div><div class="skeleton-block skeleton-line w40"></div></div>
+    <div><div class="skeleton-block skeleton-value"></div><div class="skeleton-block skeleton-sub"></div></div>
+  </div>`).join('');
+}
+
 async function loadData(spinning){
   const btn=$('refreshBtn');
   if(spinning)btn.classList.add('spin');
+  const hasDataAlready=Object.keys(state.tables).length>0;
+  // Sin datos todavía (primera carga, o el reintento después de una primera carga fallida):
+  // esqueleto en vez de dejar la pantalla en blanco o el cartel de error viejo mientras refetchea.
+  if(!hasDataAlready)$('rankList').innerHTML=skeletonRows();
   // Timeout explícito: el Apps Script puede tardar por cold start o red lenta. Sin esto, un
-  // fetch colgado deja "Cargando…" en pantalla indefinidamente sin ningún mensaje de error.
+  // fetch colgado deja el esqueleto en pantalla indefinidamente sin ningún mensaje de error.
   const controller=new AbortController();
   const timeoutId=setTimeout(()=>controller.abort(),20000);
   try{
@@ -361,12 +414,23 @@ async function loadData(spinning){
     renderSupervisorChip();
     render();
     maybeShowIdentityOnboarding();
+    hideSyncBanner();
     const stamp=new Date().toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'});
     $('updatedLabel').textContent=`Actualizado ${stamp}`;
   }catch(error){
     const timedOut=error.name==='AbortError';
+    const message=friendlyErrorMessage(error,timedOut);
     $('updatedLabel').textContent='Sin conexión con el consolidado';
-    $('rankList').innerHTML=`<div class="state-msg"><strong>No se pudo cargar</strong>${escapeHtml(timedOut?'El consolidador tardó demasiado en responder (más de 20s). Probá actualizar de nuevo.':error.message)}</div>`;
+    // Si ya había datos en pantalla (un refresh de fondo o manual que falló) NO se pisa la lista:
+    // antes cualquier error acá borraba todo el ranking y lo reemplazaba por el cartel de error,
+    // incluso en el auto-refresh silencioso de setInterval — un hipo de red de 2 segundos tiraba
+    // abajo la pantalla que alguien estaba mirando sin haber tocado nada. Ahora eso solo prende
+    // un aviso chico (con botón de reintentar) y deja la última data buena tal cual estaba.
+    if(hasDataAlready){
+      showSyncBanner(message);
+    }else{
+      $('rankList').innerHTML=`<div class="state-msg state-msg-error">${icon('alertTriangle','svg-icon state-msg-icon')}<strong>No se pudo cargar</strong>${escapeHtml(message)}<button type="button" class="state-msg-retry" data-retry>Reintentar</button></div>`;
+    }
   }finally{
     clearTimeout(timeoutId);
     btn.classList.remove('spin');
@@ -775,13 +839,16 @@ function renderStores(){
   const pointsTable=cfg.field?SPRINT_POINTS:MAIN_POINTS;
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
-    const trophy=i===0?` ${icon('trophy','svg-icon trophy-icon')}`:'';
     const unit=cfg.unit?` ${cfg.unit}`:'';
     const value=p.ratio!==null
       ?`<span class="rank-value-main">${percent(p.ratio)}</span> <span class="rank-value-ctx">(${cfg.fmt(p.real)}/${cfg.fmt(p.obj)}${unit})</span>`
       :'<span style="color:var(--muted)">Sin objetivo</span>';
     const badge=i<pointsTable.length?`<span class="sprint-badge">+${pointsTable[i]} pts GP</span>`:'';
-    return rankRow(i,p.local,'',value,badge,'',trophy);
+    // Antes el líder llevaba medalla dorada Y un trofeo aparte pegado al nombre — dos señales para
+    // el mismo dato, y encima un lenguaje distinto al de Vendedores (que solo usa la medalla). Se
+    // saca el trofeo: la medalla ya alcanza, y ahora "quién va primero" se lee igual en las dos
+    // pantallas. Ver revisión de UX del 2026-09-06.
+    return rankRow(i,p.local,'',value,badge);
   }).join('');
 
   renderPrivateCard({
@@ -809,13 +876,12 @@ function renderStoreChampionship(){
   const visible=capForDisplay(filtered);
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
-    const trophy=i===0?` ${icon('trophy','svg-icon trophy-icon')}`:'';
     const value=`<span class="rank-value-main">${number(p.total)} pts</span>`;
     const b=p.breakdown;
     const sub=state.supervisor
       ?`Principal ${p.main} · Sprints: Tk ${b.ticket} · Pf ${b.perfumes} · Bx ${b.boxer} · PxT ${b.pxt}`
       :`Principal ${p.main} pts · Sprints ${p.sprint} pts`;
-    return rankRow(i,p.local,'',value,sub,'',trophy);
+    return rankRow(i,p.local,'',value,sub); // medalla alcanza para marcar el líder, ver renderStores
   }).join('');
 
   renderPrivateCard({
@@ -1068,7 +1134,7 @@ function renderPrivateCard({list,match,nameOf,progressText,microText,leaderText}
 
 function showEmpty(message){
   $('rankPeriod').textContent='';
-  $('rankList').innerHTML=`<div class="state-msg"><strong>Sin datos</strong>${escapeHtml(message)}</div>`;
+  $('rankList').innerHTML=`<div class="state-msg">${icon('search','svg-icon state-msg-icon')}<strong>Sin datos</strong>${escapeHtml(message)}</div>`;
   $('privateCard').hidden=true;
   document.body.classList.remove('has-private-card');
 }
@@ -1076,6 +1142,11 @@ function showEmpty(message){
 applyTheme(localStorage.getItem(THEME_KEY)||'dark');
 qa('.theme-btn').forEach(btn=>btn.addEventListener('click',()=>applyTheme(btn.dataset.themeChoice)));
 $('refreshBtn').addEventListener('click',()=>loadData(true));
+// Delegado porque el botón vive DENTRO del innerHTML que arma loadData() en el error de primera
+// carga — se re-crea cada vez, así que un listener puesto una sola vez en #rankList (que nunca se
+// reemplaza a sí mismo) es lo único que sigue funcionando después del primer render.
+$('rankList').addEventListener('click',e=>{if(e.target.closest('[data-retry]'))loadData(true)});
+$('syncBannerRetry').addEventListener('click',()=>loadData(true));
 $('localFilter').addEventListener('change',()=>{state.local=$('localFilter').value;render()});
 qa('#scopeTabs .tab').forEach(btn=>btn.addEventListener('click',()=>{state.scope=btn.dataset.scope;render()}));
 qa('#catTabs .tab').forEach(btn=>btn.addEventListener('click',()=>{state.category=btn.dataset.category;render()}));
@@ -1125,13 +1196,13 @@ qa('#storeCatTabs .tab').forEach(btn=>btn.addEventListener('click',()=>{state.st
    compartido). "Más" no cambia de scope — abre el drawer, que es el menú completo. */
 qa('.bottom-nav-item[data-scope]').forEach(btn=>btn.addEventListener('click',()=>{state.scope=btn.dataset.scope;render();closeDrawer()}));
 function openDrawer(){
-  $('drawerBackdrop').hidden=false;
-  $('drawerPanel').hidden=false;
+  openSheet($('drawerBackdrop'));
+  openSheet($('drawerPanel'));
   $('bottomNavMore').setAttribute('aria-expanded','true');
 }
 function closeDrawer(){
-  $('drawerBackdrop').hidden=true;
-  $('drawerPanel').hidden=true;
+  closeSheet($('drawerBackdrop'));
+  closeSheet($('drawerPanel'));
   $('bottomNavMore').setAttribute('aria-expanded','false');
 }
 $('bottomNavMore').addEventListener('click',openDrawer);
@@ -1171,13 +1242,78 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').then(()=>{
       if(hadController){
         navigator.serviceWorker.addEventListener('controllerchange',()=>{
-          $('updateBanner').hidden=false;
+          openSheet($('updateBanner'));
         });
       }
     }).catch(()=>{});
   });
   $('updateBannerBtn').addEventListener('click',()=>location.reload());
 }
+
+/* ── PULL-TO-REFRESH (gesto táctil, dispara lo mismo que el botón de refresh) ──────────────────
+   La app no tenía forma de "tirar hacia abajo para actualizar" — el único disparador visible era
+   el ícono de 30px arriba a la derecha, un gesto que en el celular de cualquiera ya está
+   incorporado de memoria (Instagram/WhatsApp/Gmail). Solo se activa con scrollY=0 (no hay nada
+   arriba para "tirar" si ya se está scrolleando la lista), con ningún panel/modal abierto encima,
+   y con un gesto claramente vertical (dy > |dx|) para no pisar el swipe horizontal de categorías
+   que ya vive en #rankList (ver initCategorySwipe más arriba) — ambos escuchan touchmove sobre
+   elementos distintos sin frenar la propagación, así que conviven sin problema mientras cada uno
+   se quede en su eje. Damped a la mitad del recorrido del dedo (mismo "rubber-band" que el scroll
+   nativo) para que no se sienta que el indicador "se despega" del dedo.
+   OJO: esto no se pudo probar con el dedo en un celular real desde acá — antes de darlo por
+   bueno del todo conviene confirmarlo a mano, mismo criterio que ya se usa en el resto del
+   archivo para todo lo táctil (swipe de categorías, tamaños de tap, etc.). */
+(function initPullToRefresh(){
+  const indicator=document.createElement('div');
+  indicator.className='ptr-indicator';
+  indicator.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`;
+  document.body.appendChild(indicator);
+  const THRESHOLD=64,MAX_PULL=90,DAMP=.5;
+  let startX=0,startY=0,dragging=false,pulling=false,ready=false,refreshing=false;
+  const scrollTopOf=()=>window.scrollY||document.documentElement.scrollTop||0;
+  const anySheetOpen=()=>!$('identityModal').hidden||!$('pinModal').hidden||!$('drawerPanel').hidden;
+  function reset(){
+    pulling=false;ready=false;
+    indicator.classList.add('snap');
+    indicator.classList.remove('show','ready');
+    indicator.style.transform='';
+    setTimeout(()=>indicator.classList.remove('snap'),260);
+  }
+  window.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1||refreshing||anySheetOpen()||scrollTopOf()>0){dragging=false;return}
+    startX=e.touches[0].clientX;startY=e.touches[0].clientY;dragging=true;
+  },{passive:true});
+  window.addEventListener('touchmove',e=>{
+    if(!dragging||refreshing)return;
+    const dx=e.touches[0].clientX-startX,dy=e.touches[0].clientY-startY;
+    if(dy<=0||Math.abs(dx)>dy||scrollTopOf()>0){if(pulling)reset();return}
+    pulling=true;
+    const damped=Math.min(MAX_PULL,dy*DAMP);
+    ready=damped>=THRESHOLD*DAMP;
+    indicator.classList.remove('snap');
+    indicator.style.transform=`translate(-50%, ${damped}px) rotate(${damped*2.4}deg)`;
+    indicator.classList.add('show');
+    indicator.classList.toggle('ready',ready);
+    if(e.cancelable)e.preventDefault();
+  },{passive:false});
+  window.addEventListener('touchend',()=>{
+    if(!dragging)return;
+    dragging=false;
+    if(pulling&&ready){
+      refreshing=true;
+      indicator.classList.add('spin','snap');
+      indicator.style.transform='translate(-50%, 36px)';
+      setTimeout(()=>indicator.classList.remove('snap'),260);
+      loadData(false).finally(()=>{
+        refreshing=false;
+        indicator.classList.remove('spin');
+        reset();
+      });
+    }else{
+      reset();
+    }
+  },{passive:true});
+})();
 
 renderIdentityChip();
 renderSupervisorChip();

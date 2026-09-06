@@ -45,6 +45,11 @@
       <div class="updated-label" id="updatedLabel">Conectando…</div>
     </header>
 
+    <div class="sync-banner" id="syncBanner" hidden>
+      <span id="syncBannerText">No se pudo actualizar los datos.</span>
+      <button id="syncBannerRetry" type="button">Reintentar</button>
+    </div>
+
     <div class="supervisor-badge" id="supervisorBadge" hidden>
       <span><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Modo supervisión · tabla completa, sin recorte</span>
       <button id="supervisorExit" type="button">Salir</button>
@@ -80,7 +85,14 @@
       <span id="rankPeriod"></span>
     </div>
     <div class="rank-list" id="rankList">
-      <div class="state-msg"><strong>Cargando…</strong>Conectando con el consolidado.</div>
+      <!-- Esqueleto estático de arranque: se ve la FORMA de una lista de ranking desde el primer
+           pintado (antes incluso de que corra app.js), en vez de un texto de "Cargando…" en una
+           caja vacía. app.js lo pisa con el mismo esqueleto (skeletonRows()) apenas arranca
+           loadData(), así que esto es solo lo que se alcanza a ver en el primer instante. -->
+      <div class="skeleton-row"><div class="skeleton-block skeleton-pos"></div><div><div class="skeleton-block skeleton-line w60"></div><div class="skeleton-block skeleton-line w40"></div></div><div><div class="skeleton-block skeleton-value"></div><div class="skeleton-block skeleton-sub"></div></div></div>
+      <div class="skeleton-row"><div class="skeleton-block skeleton-pos"></div><div><div class="skeleton-block skeleton-line w60"></div><div class="skeleton-block skeleton-line w40"></div></div><div><div class="skeleton-block skeleton-value"></div><div class="skeleton-block skeleton-sub"></div></div></div>
+      <div class="skeleton-row"><div class="skeleton-block skeleton-pos"></div><div><div class="skeleton-block skeleton-line w60"></div><div class="skeleton-block skeleton-line w40"></div></div><div><div class="skeleton-block skeleton-value"></div><div class="skeleton-block skeleton-sub"></div></div></div>
+      <div class="skeleton-row"><div class="skeleton-block skeleton-pos"></div><div><div class="skeleton-block skeleton-line w60"></div><div class="skeleton-block skeleton-line w40"></div></div><div><div class="skeleton-block skeleton-value"></div><div class="skeleton-block skeleton-sub"></div></div></div>
     </div>
 
     <div class="reglas-panel" id="reglasPanel" hidden>
