@@ -26,7 +26,7 @@ const MAIN_POINTS=[25,18,15,12,10,8,6,4,2,1,1,1,1,1,1];
 // conversación del 2026-09-04.
 const SPRINT_POINTS=[4,3,2,1,1,1,1,1];
 const SPRINT_FIELDS={ticket:'TP',perfumes:'Perfumes',boxer:'Boxer',pxt:'PxT'};
-const state={tables:{},local:'all',scope:'home',category:'liga',storeCategory:'constructores',user:null,guest:false,supervisor:false};
+const state={tables:{},local:'all',scope:'home',category:'liga',storeCategory:'sprint',user:null,guest:false,supervisor:false};
 const THEME_KEY='vdhRankingTheme';
 const $=id=>document.getElementById(id);const qa=sel=>[...document.querySelectorAll(sel)];
 function applyTheme(theme){
