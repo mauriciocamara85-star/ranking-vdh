@@ -604,6 +604,18 @@ function diasTagHtml(p){
 // el ancho al nombre en un teléfono de 390px. El motivo ("1 de 7 días") ya va en la línea de
 // abajo del nombre, que sí envuelve.
 const NC_BADGE='<span class="sprint-badge nc-badge">No clasifica</span>';
+// Quién ve las filas "no clasifica": SOLO Supervisión, y al fondo de todo, después del último
+// puesto. En la vista pública el ranking corta en el Top 15 de los que SÍ clasifican y listo —
+// se probó al revés (NC pegadas abajo del Top 15, a la vista de todo el local) y se sacó el
+// 2026-09-15: exponía a la persona delante de todo el equipo para explicar una regla, cuando el
+// que no clasifica ya se entera por su propia tarjeta personal, que le dice qué le falta. Además
+// así queda consistente con el resto de la app: del puesto 16 para abajo tampoco se ve nadie sin
+// el PIN. Nota: es clasificados.slice(), no capForDisplay(lista entera), porque si una semana
+// tuviera menos de 15 clasificados el corte de 15 volvería a colar las NC en la vista pública.
+function visiblesConNC(clasificados,todos){
+  if(state.supervisor)return[...clasificados,...todos.filter(p=>!estaClasificado(p))];
+  return clasificados.slice(0,TOP_PUBLIC);
+}
 // Opciones de rankRow para una fila no clasificada — mismas tres en todas las vistas.
 const ncRowOpts={posLabel:'<span class="rank-nc-pos">NC</span>',rowClass:'nc'};
 
@@ -754,7 +766,7 @@ function renderSellersMejora(){
 
   const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
   const clasificados=filtered.filter(estaClasificado);
-  const visible=[...capForDisplay(clasificados),...filtered.filter(p=>!estaClasificado(p))];
+  const visible=visiblesConNC(clasificados,filtered);
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
     const trend=p.mejora===null?'':p.mejora>0?' <span class="trend positive">▲</span>':p.mejora<0?' <span class="trend negative">▼</span>':' <span class="trend">■</span>';
@@ -806,11 +818,8 @@ function renderSellersCategory(category){
   if(!list.length){showEmpty('Sin datos para este filtro.');return}
 
   const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
-  // Los no clasificados se agregan SIEMPRE al final de lo visible, incluso cuando el corte público
-  // de 15 puestos (capForDisplay) los dejaría afuera por estar en el puesto 40: si no se ven, la
-  // regla no se entiende y el que trabajó un día simplemente "desaparece" del ranking.
   const clasificados=filtered.filter(estaClasificado);
-  const visible=[...capForDisplay(clasificados),...filtered.filter(p=>!estaClasificado(p))];
+  const visible=visiblesConNC(clasificados,filtered);
   const isSprint=category!=='liga';
   // La pastillita "+X pts GP" ya marcaba el Top 8 de los Sprints (Ticket/Perfumes/Boxer/PxT) — acá
   // se extiende a Liga con su propia escala (MAIN_POINTS, Top 10) para que la Carrera Principal
@@ -1327,9 +1336,12 @@ function renderPrivateCard({list,match,nameOf,progressText,microText,leaderText}
   if(noClasifica){
     // Corto sí o sí: .private-micro es nowrap con ellipsis, un texto largo se corta a la mitad en
     // un teléfono angosto. La explicación completa vive en el Reglamento.
+    // Ésta es la ÚNICA vía por la que el vendedor se entera de que no clasificó (su fila ya no
+    // aparece en el ranking público, ver visiblesConNC), así que dice la condición que le falta,
+    // no solo el dato: "necesitás 3 para puntuar" en vez de "mínimo 3".
     const motivo=p.motivoNC==='tickets'
-      ?`${p.tickets} tickets esta semana · mínimo ${p.minTickets}`
-      :`Trabajaste ${p.dias} de ${p.diasAbiertos} día${p.diasAbiertos===1?'':'s'} · mínimo ${p.minDias}`;
+      ?`${p.tickets} ticket${p.tickets===1?'':'s'} · necesitás ${p.minTickets} para puntuar`
+      :`${p.dias} de ${p.diasAbiertos} día${p.diasAbiertos===1?'':'s'} · necesitás ${p.minDias} para puntuar`;
     $('privateMicro').innerHTML=`<span class="nc-text">${icon('alertTriangle','svg-icon text-icon')}${motivo}</span>`;
   }else if(idx===0){
     $('privateMicro').innerHTML=`<span class="positive">${icon('trophy','svg-icon text-icon')}${leaderText||'¡Vas primero esta semana!'}</span>`;
