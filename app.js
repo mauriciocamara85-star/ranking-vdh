@@ -25,7 +25,32 @@ const MAIN_POINTS=[25,18,15,12,10,8,6,4,2,1,1,1,1,1,1];
 // 8 puestos que puntúan (solo baja el valor), para no sacarle el incentivo a nadie de golpe. Ver
 // conversación del 2026-09-04.
 const SPRINT_POINTS=[4,3,2,1,1,1,1,1];
+// Cuántos puestos puntúan en la carrera principal de LOCALES (Sprint Semanal → Copa
+// Constructores). Son 13 locales: el top 10 ya cubre casi todo el campo, estirarlo a los 15
+// puestos de MAIN_POINTS (pensado para ~41 vendedores, ver arriba) dejaba sin premiar el esfuerzo
+// a casi nadie. Vive en una constante porque antes el número estaba en dos lugares que se
+// desincronizaron: buildStoreChampionship repartía al top 10, pero la pastillita de Sprint
+// Semanal se dibujaba con MAIN_POINTS entero y prometía "+1 pts GP" a los puestos 11 a 13 que
+// nunca los recibían. Pedido del 2026-09-15 a partir de esa captura.
+const STORE_MAIN_TOP=10;
 const SPRINT_FIELDS={ticket:'TP',perfumes:'Perfumes',boxer:'Boxer',pxt:'PxT'};
+// Mínimo de días trabajados para clasificar a puntos en una semana. Sale de un caso real
+// (conversación del 2026-09-15): una vendedora de Rivadavia trabajó UN solo día de la semana 2
+// —justo un domingo, el día más fuerte del local— vendió $628.803 contra un objetivo semanal de
+// $290.656 y quedó 1ª con 216%, arriba de gente que hizo la semana completa. El objetivo diario
+// que carga Ventas es un share FIJO por persona (ella 5%, un full-time 29%) que se le imputa
+// todos los días, trabaje o no: quien trabaja un día solo arrastra un objetivo chico y encima
+// elige (sin querer) el mejor día, mientras el que hace 6 días se come también los lunes flojos.
+// Medido sobre las semanas 1 y 2: quien trabajó 1 día aportó 24,1% del local los días que estuvo
+// contra el 1,7% que le pedían (+22,4 pts de ventaja); de 2 a 6 días la ventaja es de 3 a 7 pts,
+// o sea ruido normal. La distorsión no es gradual, está concentrada en el caso de 1 día.
+// Por eso el piso es 3 y no un % relativo a los días que abre el local: con "la mitad de los días
+// del local" (7 días → 4) quedaban afuera TODAS las semanas los part-time estables de 3 días
+// (Melanie Flores, Flor Caro), que cumplen su horario completo. El piso de 3 deja competir a los
+// part-time y solo saca las semanas anómalas: en las 2 semanas completas cargadas afecta a 1
+// persona por semana (Mari Ramon con 1 día en la S2 —que normalmente hace 6— y Gabi Burroso con
+// 2 días en la S1). Si algún día hay contratos estables de 2 días por semana, bajar esto a 2.
+const MIN_DIAS_CLASIFICA=3;
 const state={tables:{},local:'all',scope:'home',category:'liga',storeCategory:'sprint',user:null,guest:false,supervisor:false};
 const THEME_KEY='vdhRankingTheme';
 const $=id=>document.getElementById(id);const qa=sel=>[...document.querySelectorAll(sel)];
@@ -351,18 +376,78 @@ function fusionarCompartidos(rows){
 // PERSONAS. Lo que rankea LOCALES (buildStoreCategoryList, aggregateStoresForWeek) sigue usando
 // weekRows() crudo a propósito, para no perder su venta real en el total de cada local.
 function weekRowsPersonas(weekKey){return fusionarCompartidos(weekRows(weekKey))}
+// ── DÍAS TRABAJADOS Y CLASIFICACIÓN (ver MIN_DIAS_CLASIFICA arriba) ────
+// El consolidador NO trae "días trabajados": el objetivo diario se imputa todos los días, esté o
+// no la persona, así que no sirve como señal de presencia. El único proxy disponible es "días con
+// venta > 0" en VENDEDOR_DIARIO. Tiene un borde conocido: alguien que trabajó y no vendió NADA en
+// todo el día figura como ausente. Es raro con estos tickets, pero si algún día Ventas carga el
+// objetivo diario en 0 los días de franco, conviene usar eso (sería exacto) en vez de este proxy.
+// Los días se cuentan por PERSONA (no por local): quien cubre en dos locales el mismo día suma un
+// día, no dos — mismo criterio que fusionarCompartidos() para todo lo que rankea personas.
+let diasCache={};
+function diaKeyOf(row){return String(fieldValue(row,'Fecha')??'').slice(0,10)}
+function diasTrabajadosDeLaSemana(weekKey){
+  if(diasCache[weekKey])return diasCache[weekKey];
+  // Días que el local tuvo actividad real esa semana — es el tope para el mínimo exigido, sin
+  // esto el lunes y el martes el ranking quedaría vacío (nadie puede tener 3 días todavía).
+  const diasLocal={};
+  localDiarioWeekRows(weekKey).forEach(row=>{
+    if(num(row,'Venta real')<=0)return;
+    const local=row.Local||'';
+    (diasLocal[local]||(diasLocal[local]=new Set())).add(diaKeyOf(row));
+  });
+  const porPersona={};
+  (state.tables.VENDEDOR_DIARIO||[]).filter(row=>weekKeyOf(row)===weekKey).forEach(row=>{
+    const nombre=row.Vendedor;
+    if(!nombre)return;
+    const p=porPersona[nombre]||(porPersona[nombre]={dias:new Set(),locales:new Set()});
+    p.locales.add(row.Local||'');
+    if(num(row,'Venta real')>0)p.dias.add(diaKeyOf(row));
+  });
+  const resultado={};
+  Object.entries(porPersona).forEach(([nombre,p])=>{
+    const abiertos=Math.max(0,...[...p.locales].map(local=>diasLocal[local]?diasLocal[local].size:0));
+    // Rampa de mitad de semana: se exige la mitad de los días que lleva abiertos el local, con
+    // techo en MIN_DIAS_CLASIFICA. Con la semana entera cargada (5, 6 o 7 días) da siempre 3 —el
+    // piso prometido—, pero el miércoles pide 2 y el lunes 1, así nadie aparece como "no
+    // clasificado" solo porque la semana recién arranca. Sin la rampa, un part-time de 3 días
+    // figuraría NC hasta el jueves todas las semanas.
+    const minimo=abiertos?Math.min(MIN_DIAS_CLASIFICA,Math.max(1,Math.ceil(abiertos/2))):MIN_DIAS_CLASIFICA;
+    resultado[nombre]={dias:p.dias.size,abiertos,minimo,clasifica:p.dias.size>=minimo};
+  });
+  diasCache[weekKey]=resultado;
+  return resultado;
+}
+// Sin fila en VENDEDOR_DIARIO (tabla vieja o consolidador que todavía no la manda) se clasifica
+// igual: la regla nunca puede sacar a alguien del ranking por falta de datos, solo por un dato
+// que efectivamente diga que trabajó menos días que el mínimo.
+function infoDiasDe(weekKey,nombre){
+  const info=diasTrabajadosDeLaSemana(weekKey)[nombre];
+  return info||{dias:null,abiertos:0,minimo:MIN_DIAS_CLASIFICA,clasifica:true};
+}
+const estaClasificado=p=>p.clasifica!==false;
 // Empates: si dos personas quedan exactamente igual en % de cumplimiento, la posición (y por lo
 // tanto los puntos F1/Sprint que reparte esa posición) se define por mayor venta/unidad absoluta
 // real y, si también empatan ahí, alfabético — determinístico siempre, nunca "quien cargó primero
 // en la planilla" (que es lo que pasaba antes, porque Array.sort es estable pero el orden de
 // origen no tiene ningún criterio de negocio detrás).
+// Los no clasificados (menos de MIN_DIAS_CLASIFICA días trabajados) NO se sacan de la lista: van
+// al final, ordenados entre ellos por el mismo criterio, con su % a la vista. Esconderlos cambia
+// la pregunta del local de "¿por qué está primera con un día?" a "¿por qué no está?" — se ven,
+// pero sin medalla y sin puntos (los reparte quien clasifica, ver buildChampionship).
 function ratioStandings(weekKey,field){
   const realKey=field?`${field} real`:'Venta real',objKey=field?`${field} obj`:'Venta obj';
   const list=weekRowsPersonas(weekKey).map(row=>{
-    const real=num(row,realKey),obj=num(row,objKey);
-    return{local:row.Local,name:row.Vendedor,real,obj,ratio:obj?real/obj*100:null};
+    const real=num(row,realKey),obj=num(row,objKey),info=infoDiasDe(weekKey,row.Vendedor);
+    // Sin venta en toda la semana no hay ningún % inflado que corregir: la regla está para que un
+    // día suelto no se convierta en un 216%, no para etiquetar al que todavía no vendió. Sin esta
+    // línea, el lunes (con un solo día cargado) media lista aparecía como "no clasifica" sin que
+    // eso cambiara nada — con 0% quedan últimos igual, clasifiquen o no.
+    const clasifica=info.clasifica||real<=0;
+    return{local:row.Local,name:row.Vendedor,real,obj,ratio:obj?real/obj*100:null,
+      dias:info.dias,diasAbiertos:info.abiertos,minDias:info.minimo,clasifica};
   }).filter(p=>p.ratio!==null);
-  list.sort((a,b)=>(b.ratio-a.ratio)||(b.real-a.real)||String(a.name).localeCompare(String(b.name),'es'));
+  list.sort((a,b)=>(estaClasificado(b)-estaClasificado(a))||(b.ratio-a.ratio)||(b.real-a.real)||String(a.name).localeCompare(String(b.name),'es'));
   return list;
 }
 
@@ -408,6 +493,7 @@ async function loadData(spinning){
     if(!response.ok)throw new Error(`HTTP ${response.status}`);
     const data=await response.json();
     state.tables=Array.isArray(data)?{LOCAL_DIARIO:data}:{...data};
+    diasCache={}; // los días trabajados se recalculan con la data nueva, no con la del fetch anterior
     normalizeLocalNames(state.tables);
     fillLocalFilter();
     renderIdentityChip();
@@ -453,9 +539,33 @@ function fillLocalFilter(){
 // pie de la fila (no convencía — "la barra no me cierra") y un avatar con iniciales (sin foto real
 // no sumaba info sobre el nombre ya escrito al lado). Quedan documentadas por si en algún momento
 // hay fotos reales de vendedores o se las quiere retomar con otro enfoque.
-function rankRow(i,name,local,valueHtml,subHtml,extraHtml,nameSuffixHtml){
-  return `<div class="rank-row ${rankRowClass(i)}" style="animation-delay:${Math.min(i,10)*35}ms"><div class="rank-medal-pos">${medalFor(i)||(i+1)}</div><div class="rank-info"><div class="rank-name">${escapeHtml(name)}${nameSuffixHtml||''}</div>${local?`<div class="rank-local">${escapeHtml(local)}</div>`:''}${extraHtml?`<div class="rank-extra">${extraHtml}</div>`:''}</div><div class="rank-metric"><div class="rank-value">${valueHtml}</div><div class="rank-sub">${subHtml}</div></div></div>`;
+// opts (opcional) es para las filas que no siguen la numeración normal: hoy solo las de "no
+// clasificado", que muestran NC en vez del puesto y no pueden llevar la clase top1/top2/top3 (van
+// al final de la lista, pero si una semana tuviera 2 clasificados quedarían en índice 0/1/2).
+function rankRow(i,name,local,valueHtml,subHtml,extraHtml,nameSuffixHtml,opts){
+  const o=opts||{};
+  const rowClass=o.rowClass!==undefined?o.rowClass:rankRowClass(i);
+  const posHtml=o.posLabel!==undefined?o.posLabel:(medalFor(i)||(i+1));
+  return `<div class="rank-row ${rowClass}" style="animation-delay:${Math.min(i,10)*35}ms"><div class="rank-medal-pos">${posHtml}</div><div class="rank-info"><div class="rank-name">${escapeHtml(name)}${nameSuffixHtml||''}</div>${local?`<div class="rank-local">${escapeHtml(local)}</div>`:''}${extraHtml?`<div class="rank-extra">${extraHtml}</div>`:''}</div><div class="rank-metric"><div class="rank-value">${valueHtml}</div><div class="rank-sub">${subHtml}</div></div></div>`;
 }
+// "3 de 6 días" debajo del nombre para quien no hizo la semana completa. Va también en las filas
+// que SÍ clasifican (en gris, no en ámbar): un 143% hecho en 3 días y uno hecho en 6 no son el
+// mismo dato, y verlo al lado del número saca la sospecha de arriba de la mesa sin tener que
+// explicar nada. Semana completa = sin etiqueta, para no llenar la lista de ruido.
+function diasTagHtml(p){
+  // Sin días (0 o sin dato) tampoco se etiqueta: "0 de 1 días" al lado de un 0% no agrega nada y
+  // el lunes lo tendría media lista.
+  if(!p.dias||!p.diasAbiertos)return'';
+  if(estaClasificado(p)&&p.dias>=p.diasAbiertos)return'';
+  const texto=`${p.dias} de ${p.diasAbiertos} día${p.diasAbiertos===1?'':'s'}`;
+  return`<span class="rank-days${estaClasificado(p)?'':' nc'}">${texto}</span>`;
+}
+// Corto a propósito: la pastillita vive en .rank-sub, que es nowrap — un texto largo acá le come
+// el ancho al nombre en un teléfono de 390px. El motivo ("1 de 7 días") ya va en la línea de
+// abajo del nombre, que sí envuelve.
+const NC_BADGE='<span class="sprint-badge nc-badge">No clasifica</span>';
+// Opciones de rankRow para una fila no clasificada — mismas tres en todas las vistas.
+const ncRowOpts={posLabel:'<span class="rank-nc-pos">NC</span>',rowClass:'nc'};
 
 function render(){
   qa('#scopeTabs .tab').forEach(btn=>btn.classList.toggle('active',btn.dataset.scope===state.scope));
@@ -505,9 +615,11 @@ function buildChampionship(){
     // Top 15, no 10 — MAIN_POINTS tiene 15 puestos justamente para esto (ver comentario en su
     // definición). buildStoreChampionship (locales) usa este mismo array pero con slice(0,10):
     // no tocar ese sin motivo, son campos de tamaño muy distinto (~41 vendedores vs 13 locales).
-    ratioStandings(weekKey,null).slice(0,15).forEach((p,i)=>{ensure(p.local,p.name).main+=MAIN_POINTS[i]});
+    // filter(estaClasificado) antes del slice: los no clasificados quedan al final de la lista,
+    // pero si una semana tuviera menos de 15 clasificados se colarían igual a la zona de puntos.
+    ratioStandings(weekKey,null).filter(estaClasificado).slice(0,15).forEach((p,i)=>{ensure(p.local,p.name).main+=MAIN_POINTS[i]});
     Object.entries(SPRINT_FIELDS).forEach(([cat,field])=>{
-      ratioStandings(weekKey,field).slice(0,8).forEach((p,i)=>{
+      ratioStandings(weekKey,field).filter(estaClasificado).slice(0,8).forEach((p,i)=>{
         const e=ensure(p.local,p.name);
         e.sprint+=SPRINT_POINTS[i];
         e.breakdown[cat]+=SPRINT_POINTS[i];
@@ -564,10 +676,20 @@ function buildMejoraListFor(currentKey,prevKey){
   const ratioOf=row=>{if(!row)return null;const target=num(row,'Venta obj');return target?num(row,'Venta real')/target*100:null};
   const list=Object.values(byPerson).filter(p=>p.actual).map(p=>{
     const actualRatio=ratioOf(p.actual),prevRatio=p.previo?ratioOf(p.previo):null;
-    const mejora=(actualRatio!==null&&prevRatio!==null)?actualRatio-prevRatio:null;
-    return{...p,actualRatio,prevRatio,mejora};
+    const info=infoDiasDe(currentKey,p.name);
+    // La mejora necesita DOS semanas válidas: si la semana previa fue parcial (trabajó 1 día y
+    // marcó 216%), el delta de esta semana no mide una caída real sino el rebote contra una
+    // semana que ni siquiera clasificó. Y al revés: la semana siguiente a una parcial daría una
+    // "mejora" enorme regalada. La Mayor Mejora VDH paga premio en efectivo (ver reglamento), no
+    // puede salir de una comparación así.
+    const baseValida=!p.previo||infoDiasDe(prevKey,p.name).clasifica;
+    const mejora=(actualRatio!==null&&prevRatio!==null&&baseValida)?actualRatio-prevRatio:null;
+    return{...p,actualRatio,prevRatio,mejora,baseValida,
+      dias:info.dias,diasAbiertos:info.abiertos,minDias:info.minimo,
+      clasifica:info.clasifica||!(actualRatio>0)}; // mismo criterio que ratioStandings: sin venta no se etiqueta
   });
   list.sort((a,b)=>{
+    if(estaClasificado(a)!==estaClasificado(b))return estaClasificado(b)-estaClasificado(a);
     if(a.mejora!==null&&b.mejora!==null){if(b.mejora!==a.mejora)return b.mejora-a.mejora}
     else if(a.mejora!==null)return -1;
     else if(b.mejora!==null)return 1;
@@ -591,13 +713,20 @@ function renderSellersMejora(){
   if(!list.length){showEmpty('Sin vendedores para este filtro.');return}
 
   const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
-  const visible=capForDisplay(filtered);
+  const clasificados=filtered.filter(estaClasificado);
+  const visible=[...capForDisplay(clasificados),...filtered.filter(p=>!estaClasificado(p))];
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
     const trend=p.mejora===null?'':p.mejora>0?' <span class="trend positive">▲</span>':p.mejora<0?' <span class="trend negative">▼</span>':' <span class="trend">■</span>';
-    const value=p.mejora!==null?`<span class="${p.mejora>=0?'positive':'negative'}">${p.mejora>=0?'+':''}${p.mejora.toFixed(1)} pts</span>${trend}`:'<span style="color:var(--muted)">1ª semana</span>';
+    const value=p.mejora!==null
+      ?`<span class="${p.mejora>=0?'positive':'negative'}">${p.mejora>=0?'+':''}${p.mejora.toFixed(1)} pts</span>${trend}`
+      :`<span style="color:var(--muted)">${p.prevRatio===null?'1ª semana':'sin base'}</span>`;
     const sub=p.actualRatio!==null?`${percent(p.actualRatio)} esta semana`:'sin objetivo';
-    return rankRow(i,p.name,p.local,value,sub);
+    // "base de comparación parcial" va en la línea que envuelve (rank-extra), no en rank-sub, que
+    // es nowrap y le comería el ancho al nombre en un teléfono angosto.
+    const extra=[diasTagHtml(p),p.baseValida?'':'<span class="rank-days">base de comparación parcial</span>'].filter(Boolean).join(' · ');
+    if(!estaClasificado(p))return rankRow(i,p.name,p.local,value,NC_BADGE,extra,'',ncRowOpts);
+    return rankRow(i,p.name,p.local,value,sub,extra);
   }).join('');
 
   renderPrivateCard({
@@ -637,7 +766,11 @@ function renderSellersCategory(category){
   if(!list.length){showEmpty('Sin datos para este filtro.');return}
 
   const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
-  const visible=capForDisplay(filtered);
+  // Los no clasificados se agregan SIEMPRE al final de lo visible, incluso cuando el corte público
+  // de 15 puestos (capForDisplay) los dejaría afuera por estar en el puesto 40: si no se ven, la
+  // regla no se entiende y el que trabajó un día simplemente "desaparece" del ranking.
+  const clasificados=filtered.filter(estaClasificado);
+  const visible=[...capForDisplay(clasificados),...filtered.filter(p=>!estaClasificado(p))];
   const isSprint=category!=='liga';
   // La pastillita "+X pts GP" ya marcaba el Top 8 de los Sprints (Ticket/Perfumes/Boxer/PxT) — acá
   // se extiende a Liga con su propia escala (MAIN_POINTS, Top 10) para que la Carrera Principal
@@ -647,8 +780,10 @@ function renderSellersCategory(category){
   const pointsTable=isSprint?SPRINT_POINTS:MAIN_POINTS;
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
+    const extra=diasTagHtml(p);
+    if(!estaClasificado(p))return rankRow(i,p.name,p.local,formatCategoryValue(cfg,p),NC_BADGE,extra,'',ncRowOpts);
     const badge=i<pointsTable.length?`<span class="sprint-badge">+${pointsTable[i]} pts GP</span>`:'';
-    return rankRow(i,p.name,p.local,formatCategoryValue(cfg,p),badge);
+    return rankRow(i,p.name,p.local,formatCategoryValue(cfg,p),badge,extra);
   }).join('');
 
   renderPrivateCard({
@@ -774,7 +909,7 @@ function buildStoreChampionship(){
   const totals={};
   const ensure=local=>{if(!totals[local])totals[local]={local,main:0,sprint:0,breakdown:{ticket:0,perfumes:0,boxer:0,pxt:0}};return totals[local]};
   weeks.forEach(weekKey=>{
-    storeRatioStandings(weekKey,null).slice(0,10).forEach((p,i)=>{ensure(p.local).main+=MAIN_POINTS[i]});
+    storeRatioStandings(weekKey,null).slice(0,STORE_MAIN_TOP).forEach((p,i)=>{ensure(p.local).main+=MAIN_POINTS[i]});
     Object.entries(SPRINT_FIELDS).forEach(([cat,field])=>{
       storeRatioStandings(weekKey,field).slice(0,8).forEach((p,i)=>{
         const e=ensure(p.local);
@@ -836,7 +971,11 @@ function renderStores(){
   // dos cosas aportaba tanto como ver de una el puntaje. Sprint Semanal (field null → Venta) usa
   // MAIN_POINTS, la misma carrera principal que ya puntúa en Copa Constructores; las 4 de producto
   // usan SPRINT_POINTS. Pedido del 2026-09-05.
-  const pointsTable=cfg.field?SPRINT_POINTS:MAIN_POINTS;
+  // Sprint Semanal corta en STORE_MAIN_TOP (10), no en los 15 puestos de MAIN_POINTS: la
+  // pastillita tiene que mostrar exactamente los puntos que después reparte buildStoreChampionship
+  // — del 11º para abajo no se suma nada, así que no va pastillita. Las 4 de producto siguen con
+  // SPRINT_POINTS (8 puestos), que ya coincide con lo que reparte el campeonato.
+  const pointsTable=cfg.field?SPRINT_POINTS:MAIN_POINTS.slice(0,STORE_MAIN_TOP);
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
     const unit=cfg.unit?` ${cfg.unit}`:'';
@@ -911,6 +1050,10 @@ function renderHome(){
   $('rankPeriod').textContent=`Semana ${semana} de ${mes}`;
 
   const sellers=ratioStandings(currentKey,null);
+  // Inicio muestra quién va arriba: solo clasificados. La lista completa (con los no clasificados
+  // al final) se sigue pasando a renderPrivateCard, para que quien no clasifica vea su propia
+  // tarjeta con el estado real en vez de que le desaparezca sin explicación.
+  const sellersClasificados=sellers.filter(estaClasificado);
   // Copa Constructores es el campeonato de puntos del mes (ver buildStoreChampionship) — Inicio
   // reusa esa misma lista para que el líder que muestra acá sea el mismo que ve el local al entrar
   // a la pestaña Locales, no un cálculo aparte con otro criterio.
@@ -929,7 +1072,7 @@ function renderHome(){
     $('rankList').innerHTML=`<div class="home-wrap">
       <div class="home-top3-card" data-jump="sellers">
         <span class="home-top3-title">${icon('trophy','home-card-icon')}Top 3 Vendedores · Liga VDH</span>
-        ${top3Html(sellers,p=>p.name,p=>p.local)}
+        ${top3Html(sellersClasificados,p=>p.name,p=>p.local)}
       </div>
       <div class="home-top3-card" data-jump="stores">
         <span class="home-top3-title">${icon('store','home-card-icon')}Top 3 Locales · Copa Constructores</span>
@@ -956,7 +1099,7 @@ function renderHome(){
   // puede inflarse si los % de objetivo mensual de los vendedores de un local pasan el 100%.
   const totals=localDiarioWeekRows(currentKey).reduce((acc,row)=>{acc.real+=num(row,'Venta real');acc.obj+=num(row,'Objetivo');return acc},{real:0,obj:0});
   const ratio=totals.obj?totals.real/totals.obj*100:null;
-  const leaderSeller=sellers[0]||null,leaderStore=stores[0]||null;
+  const leaderSeller=sellersClasificados[0]||null,leaderStore=stores[0]||null;
 
   $('rankList').innerHTML=`<div class="home-wrap">
     <div class="home-hero">
@@ -1078,19 +1221,25 @@ function renderFama(){
 
   const sellersOfWeek=ratioStandings(famaKey,null);
   const storesOfWeek=aggregateStoresForWeek(famaKey);
-  const sellerTop=sellersOfWeek.slice(0,3);
+  // El podio y los destacados por % son premios: solo entra quien clasificó esa semana (mínimo de
+  // días trabajados, ver MIN_DIAS_CLASIFICA). Sin esto el Salón de la Fama seguiría coronando la
+  // semana de 1 día que el ranking ya deja sin puntos.
+  const sellerTop=sellersOfWeek.filter(estaClasificado).slice(0,3);
   const storeTop=storesOfWeek.slice(0,3);
-  const tpTop=ratioStandings(famaKey,'TP')[0]||null;
-  const perfumesTop=ratioStandings(famaKey,'Perfumes')[0]||null;
-  const boxerTop=ratioStandings(famaKey,'Boxer')[0]||null;
+  const tpTop=ratioStandings(famaKey,'TP').filter(estaClasificado)[0]||null;
+  const perfumesTop=ratioStandings(famaKey,'Perfumes').filter(estaClasificado)[0]||null;
+  const boxerTop=ratioStandings(famaKey,'Boxer').filter(estaClasificado)[0]||null;
   const mejoraList=famaPrevKey?buildMejoraListFor(famaKey,famaPrevKey):[];
-  const aceleracionTop=mejoraList.filter(p=>p.mejora!==null).sort((a,b)=>b.mejora-a.mejora)[0]||null;
+  const aceleracionTop=mejoraList.filter(p=>p.mejora!==null&&estaClasificado(p)).sort((a,b)=>b.mejora-a.mejora)[0]||null;
   // Mayor venta en $ CRUDO (no % de cumplimiento) — a propósito solo como dato informativo acá, sin
   // ranking de 15 puestos ni puntos GP: un local grande (más tráfico/más vendedores) va a ganar esto
   // siempre, sea cual sea el esfuerzo relativo de cada quien — justo lo que el resto de la app evita
   // midiendo todo por % del objetivo. Como highlight suelto, es un dato de negocio legítimo (quién
   // genera más facturación) sin instalar una competencia que ya se sabe quién gana. Pedido del
   // usuario, conversación del 2026-09-06.
+  // Ésta SÍ queda abierta a todos, clasifiquen o no: no reparte puntos ni premio, y es venta en $
+  // crudo de la semana entera — quien trabajó pocos días no la va a ganar por accidente, y si
+  // alguna vez la gana es porque efectivamente facturó más que nadie.
   const vendorMayorVenta=[...sellersOfWeek].sort((a,b)=>b.real-a.real)[0]||null;
   const localMayorVenta=[...storesOfWeek].sort((a,b)=>b.real-a.real)[0]||null;
 
@@ -1128,10 +1277,18 @@ function renderPrivateCard({list,match,nameOf,progressText,microText,leaderText}
   const total=list.length,pos=idx+1;
   const displayName=nameOf?nameOf(p):`${state.user.vendedor}`;
   $('privateName').textContent=displayName;
-  $('privatePosNum').textContent=`#${pos}`;
-  $('privatePosTotal').textContent=`de ${total}`;
+  // Semana no clasificada: el puesto en la lista no significa nada (va al final por regla, no por
+  // rendimiento), así que se muestra NC con el motivo — un "#41 de 43" se leería como si hubiera
+  // rendido pésimo, justo al revés de lo que suele pasar en estos casos.
+  const noClasifica=p.clasifica===false;
+  $('privatePosNum').textContent=noClasifica?'NC':`#${pos}`;
+  $('privatePosTotal').textContent=noClasifica?'sin puntos':`de ${total}`;
   $('privateProgress').textContent=progressText(p);
-  if(idx===0){
+  if(noClasifica){
+    // Corto sí o sí: .private-micro es nowrap con ellipsis, un texto largo se corta a la mitad en
+    // un teléfono angosto. La explicación completa vive en el Reglamento.
+    $('privateMicro').innerHTML=`<span class="nc-text">${icon('alertTriangle','svg-icon text-icon')}Trabajaste ${p.dias} de ${p.diasAbiertos} día${p.diasAbiertos===1?'':'s'} · mínimo ${p.minDias}</span>`;
+  }else if(idx===0){
     $('privateMicro').innerHTML=`<span class="positive">${icon('trophy','svg-icon text-icon')}${leaderText||'¡Vas primero esta semana!'}</span>`;
   }else{
     const above=list[idx-1];
@@ -1142,7 +1299,9 @@ function renderPrivateCard({list,match,nameOf,progressText,microText,leaderText}
   // puntos/deltas sin un 100% fijo de referencia, así que ahí no hay ni barra ni "objetivo cumplido".
   const goalBadge=$('privateGoalBadge'),barEl=$('privateBar'),barFill=$('privateBarFill');
   const hasRatio=typeof p.ratio==='number';
-  const goalHit=hasRatio&&p.ratio>=100;
+  // Sin festejo de "objetivo cumplido" en una semana que no clasifica: la barra llena y el cartel
+  // verde al lado del aviso de "no suma puntos" se contradicen entre sí.
+  const goalHit=hasRatio&&p.ratio>=100&&!noClasifica;
   barEl.hidden=!hasRatio;
   if(hasRatio){
     barFill.style.width=`${Math.max(3,Math.min(100,p.ratio))}%`;

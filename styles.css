@@ -318,6 +318,17 @@ body{
 .rank-value{font:700 14px var(--display);white-space:nowrap}
 .rank-sub{font-size:10.5px;color:var(--muted);white-space:nowrap}
 .sprint-badge{display:inline-block;margin-top:3px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(249,115,22,.16);border:1px solid rgba(249,115,22,.35);color:var(--coral);font:700 10px var(--sans);white-space:nowrap}
+/* No clasificado: menos días trabajados que el mínimo de la semana (ver MIN_DIAS_CLASIFICA en
+   app.js). La fila sigue igual de legible, pero apagada y con borde punteado, para que se lea
+   como "fuera de la carrera de esta fecha" y no como un puesto más de la tabla. */
+.rank-row.nc{opacity:.72;border-style:dashed}
+.rank-nc-pos{font:700 11px var(--display);letter-spacing:.5px;color:var(--muted)}
+.sprint-badge.nc-badge{background:rgba(148,163,184,.14);border-color:rgba(148,163,184,.38);color:var(--muted)}
+/* Los días trabajados van en gris dentro de .rank-extra (que es ámbar): en una fila que clasifica
+   son contexto, no una advertencia. Solo se ponen ámbar cuando la fila no clasifica. */
+.rank-days{color:var(--muted);font-weight:600}
+.rank-days.nc{color:var(--amber)}
+.nc-text{color:var(--amber)}
 .positive{color:var(--mint)}
 .negative{color:var(--red)}
 .trend{font-size:11px;margin-left:4px}
