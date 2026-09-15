@@ -51,6 +51,21 @@ const SPRINT_FIELDS={ticket:'TP',perfumes:'Perfumes',boxer:'Boxer',pxt:'PxT'};
 // persona por semana (Mari Ramon con 1 día en la S2 —que normalmente hace 6— y Gabi Burroso con
 // 2 días en la S1). Si algún día hay contratos estables de 2 días por semana, bajar esto a 2.
 const MIN_DIAS_CLASIFICA=3;
+// Mínimo de tickets (operaciones) en la semana para clasificar en Ticket Promedio y PxT. Son las
+// dos métricas que son PROMEDIOS por ticket: con pocas operaciones, una venta grande mueve el
+// promedio muchísimo, y eso el mínimo de días no lo cubre — se puede trabajar la semana completa y
+// aun así cerrar con 5 tickets. Caso real (2026-09-15): Gabi Burroso quedó 1ª en Ticket de la
+// semana 2 con 196% y 3 días trabajados (o sea, clasificaba por días), pero hizo 5 tickets en toda
+// la semana; el resto del top hacía entre 10 y 39. Con 8 el filtro es quirúrgico: sobre las
+// semanas 1 y 2 saca ese caso y a Celeste Tito (6-7 tickets, iba 18ª y 14ª, sin premio en juego),
+// y no le mueve el puesto a nadie más — con 10 se caía Sebas Ramon, que era 3º con 133% y 8
+// tickets. Perfumes y Bóxer NO llevan este mínimo: son unidades vendidas contra objetivo, hacer
+// pocas operaciones no infla nada ahí.
+const MIN_TICKETS=8;
+// Los tickets no vienen en el consolidador: se derivan como Venta real / TP real (el TP es
+// justamente venta sobre cantidad de tickets). Da enteros redondos casi siempre, así que la cuenta
+// cierra; los decimales que aparecen son el redondeo del TP guardado en la planilla.
+const SPRINT_PROMEDIO=['TP','PxT'];
 const state={tables:{},local:'all',scope:'home',category:'liga',storeCategory:'sprint',user:null,guest:false,supervisor:false};
 const THEME_KEY='vdhRankingTheme';
 const $=id=>document.getElementById(id);const qa=sel=>[...document.querySelectorAll(sel)];
@@ -426,6 +441,15 @@ function infoDiasDe(weekKey,nombre){
   return info||{dias:null,abiertos:0,minimo:MIN_DIAS_CLASIFICA,clasifica:true};
 }
 const estaClasificado=p=>p.clasifica!==false;
+// Se redondea acá, en el origen: la cantidad de tickets es un entero por definición, y el decimal
+// que aparece al dividir es el redondeo del TP guardado en la planilla. Sin esto, alguien con 7
+// tickets reales podía dar 6,9 y quedar afuera de un mínimo de 7 por puro error de cálculo — y la
+// fila lo mostraba como "7 tickets · mínimo 7", que encima se leía como contradicción.
+function ticketsDe(row){const tp=num(row,'TP real');return tp>0?Math.round(num(row,'Venta real')/tp):null}
+// Mismo criterio que la rampa de días: a mitad de semana se pide la parte proporcional a los días
+// que lleva abierto el local (sobre una semana tipo de 6), nunca los 8 enteros. Sin esto, el lunes
+// el ranking de Ticket sería una lista entera de "no clasifica" — nadie llegó a 8 tickets todavía.
+function umbralTicketsDe(abiertos){return abiertos?Math.max(1,Math.ceil(MIN_TICKETS*Math.min(abiertos,6)/6)):MIN_TICKETS}
 // Empates: si dos personas quedan exactamente igual en % de cumplimiento, la posición (y por lo
 // tanto los puntos F1/Sprint que reparte esa posición) se define por mayor venta/unidad absoluta
 // real y, si también empatan ahí, alfabético — determinístico siempre, nunca "quien cargó primero
@@ -443,9 +467,19 @@ function ratioStandings(weekKey,field){
     // día suelto no se convierta en un 216%, no para etiquetar al que todavía no vendió. Sin esta
     // línea, el lunes (con un solo día cargado) media lista aparecía como "no clasifica" sin que
     // eso cambiara nada — con 0% quedan últimos igual, clasifiquen o no.
-    const clasifica=info.clasifica||real<=0;
+    // Ticket Promedio y PxT suman, además del mínimo de días, un mínimo de tickets (ver
+    // MIN_TICKETS): son promedios por operación, y ahí la muestra chica infla igual que el
+    // objetivo chico en la Liga, con los días trabajados en regla.
+    const esPromedio=SPRINT_PROMEDIO.includes(field);
+    const tickets=esPromedio?ticketsDe(row):null;
+    const minTickets=esPromedio?umbralTicketsDe(info.abiertos):null;
+    const faltanTickets=tickets!==null&&tickets<minTickets;
+    const clasifica=(info.clasifica&&!faltanTickets)||real<=0;
+    // Cuál de los dos mínimos faltó, para poder decirlo en la fila. Si faltan los dos manda el de
+    // días: es el motivo de fondo, y con la semana incompleta el de tickets se explica solo.
+    const motivoNC=clasifica?null:(info.clasifica?'tickets':'dias');
     return{local:row.Local,name:row.Vendedor,real,obj,ratio:obj?real/obj*100:null,
-      dias:info.dias,diasAbiertos:info.abiertos,minDias:info.minimo,clasifica};
+      dias:info.dias,diasAbiertos:info.abiertos,minDias:info.minimo,tickets,minTickets,motivoNC,clasifica};
   }).filter(p=>p.ratio!==null);
   list.sort((a,b)=>(estaClasificado(b)-estaClasificado(a))||(b.ratio-a.ratio)||(b.real-a.real)||String(a.name).localeCompare(String(b.name),'es'));
   return list;
@@ -553,6 +587,12 @@ function rankRow(i,name,local,valueHtml,subHtml,extraHtml,nameSuffixHtml,opts){
 // mismo dato, y verlo al lado del número saca la sospecha de arriba de la mesa sin tener que
 // explicar nada. Semana completa = sin etiqueta, para no llenar la lista de ruido.
 function diasTagHtml(p){
+  // Cuando lo que faltó fueron tickets, los días están en regla y decir "3 de 7 días" haría creer
+  // que el motivo es otro — se muestra la cuenta que efectivamente no llegó.
+  if(p.motivoNC==='tickets'){
+    const tk=p.tickets;
+    return`<span class="rank-days nc">${tk} ticket${tk===1?'':'s'} · mínimo ${p.minTickets}</span>`;
+  }
   // Sin días (0 o sin dato) tampoco se etiqueta: "0 de 1 días" al lado de un 0% no agrega nada y
   // el lunes lo tendría media lista.
   if(!p.dias||!p.diasAbiertos)return'';
@@ -1287,7 +1327,10 @@ function renderPrivateCard({list,match,nameOf,progressText,microText,leaderText}
   if(noClasifica){
     // Corto sí o sí: .private-micro es nowrap con ellipsis, un texto largo se corta a la mitad en
     // un teléfono angosto. La explicación completa vive en el Reglamento.
-    $('privateMicro').innerHTML=`<span class="nc-text">${icon('alertTriangle','svg-icon text-icon')}Trabajaste ${p.dias} de ${p.diasAbiertos} día${p.diasAbiertos===1?'':'s'} · mínimo ${p.minDias}</span>`;
+    const motivo=p.motivoNC==='tickets'
+      ?`${p.tickets} tickets esta semana · mínimo ${p.minTickets}`
+      :`Trabajaste ${p.dias} de ${p.diasAbiertos} día${p.diasAbiertos===1?'':'s'} · mínimo ${p.minDias}`;
+    $('privateMicro').innerHTML=`<span class="nc-text">${icon('alertTriangle','svg-icon text-icon')}${motivo}</span>`;
   }else if(idx===0){
     $('privateMicro').innerHTML=`<span class="positive">${icon('trophy','svg-icon text-icon')}${leaderText||'¡Vas primero esta semana!'}</span>`;
   }else{
