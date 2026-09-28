@@ -1,4 +1,4 @@
-const CACHE = 'vdh-ranking-v1';
+const CACHE = 'vdh-ranking-v2';
 const SHELL = ['./', './index.html', './app.js', './styles.css', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => {
@@ -21,9 +21,12 @@ self.addEventListener('fetch', event => {
     return;
   }
   // El shell de la app: red primero (para traer actualizaciones), cache como respaldo offline.
+  // cache:'no-store' es clave — sin esto, el fetch respeta el Cache-Control de GitHub Pages y en
+  // un celular puede resolver del caché HTTP del navegador sin tocar la red, mostrando un app.js
+  // viejo aunque el deploy nuevo ya esté arriba (pasó con el ajuste de Sole Lescano, 2026-09-27).
   if (event.request.method === 'GET' && url.origin === self.location.origin) {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, {cache: 'no-store'})
         .then(response => {
           const copy = response.clone();
           caches.open(CACHE).then(cache => cache.put(event.request, copy));
