@@ -390,7 +390,29 @@ function fusionarCompartidos(rows){
 // Igual que weekRows(), pero fusionando vendedores compartidos — usarla en todo lo que rankee
 // PERSONAS. Lo que rankea LOCALES (buildStoreCategoryList, aggregateStoresForWeek) sigue usando
 // weekRows() crudo a propósito, para no perder su venta real en el total de cada local.
-function weekRowsPersonas(weekKey){return fusionarCompartidos(weekRows(weekKey))}
+function weekRowsPersonas(weekKey){return aplicarAjustesManuales(fusionarCompartidos(weekRows(weekKey)),weekKey)}
+// ── Excepción puntual: venta de Sole Lescano no cargada a su nombre ────
+// Semanas 3 y 4 de septiembre 2026: cubrió domingos en un local sin lugar en la planilla para un
+// vendedor más, así que esos días quedaron tipeados a nombre de otra persona en el Sheet — el
+// local ya tiene su venta real bien contada, solo que a nombre equivocado (por eso esto NO toca
+// nada de lo que rankea locales, solo weekRowsPersonas). El objetivo que se le suma es el promedio
+// de sus propios días de Flores esa semana (Venta obj de Flores / 6 días): sin objetivo agregado
+// el % se dispara solo por sumar la venta de un día. Es una excepción de estas dos semanas
+// puntuales, no un mecanismo nuevo: en cuanto haya lugar en la planilla, vuelve a tomarse todo de
+// ahí como siempre y esta tabla no debería crecer.
+const AJUSTES_MANUALES_VENDEDOR=[
+  {weekKey:'Septiembre|4',vendedor:'Sole Lescano',ventaReal:1203999,ventaObj:369685},
+  {weekKey:'Septiembre|3',vendedor:'Sole Lescano',ventaReal:1193500,ventaObj:422497},
+];
+function aplicarAjustesManuales(rows,weekKey){
+  const ajustes=AJUSTES_MANUALES_VENDEDOR.filter(a=>a.weekKey===weekKey);
+  if(!ajustes.length)return rows;
+  return rows.map(row=>{
+    const ajuste=ajustes.find(a=>a.vendedor===row.Vendedor);
+    if(!ajuste)return row;
+    return{...row,'Venta real':num(row,'Venta real')+ajuste.ventaReal,'Venta obj':num(row,'Venta obj')+ajuste.ventaObj};
+  });
+}
 // ── DÍAS TRABAJADOS Y CLASIFICACIÓN (ver MIN_DIAS_CLASIFICA arriba) ────
 // El consolidador NO trae "días trabajados": el objetivo diario se imputa todos los días, esté o
 // no la persona, así que no sirve como señal de presencia. El único proxy disponible es "días con
