@@ -66,6 +66,15 @@ const MIN_TICKETS=8;
 // justamente venta sobre cantidad de tickets). Da enteros redondos casi siempre, así que la cuenta
 // cierra; los decimales que aparecen son el redondeo del TP guardado en la planilla.
 const SPRINT_PROMEDIO=['TP','PxT'];
+// Perfumes y Bóxer son UNIDADES: el objetivo de cada vendedor sale de prorratear su % del objetivo
+// del local, y cuando ese objetivo es chico da menos de 1 unidad y la planilla lo redondea a 0.
+// Con obj=0 el % no existe y la fila se descartaba entera — el vendedor cargaba la venta y no
+// aparecía en el ranking (caso real 2026-09-30: Javi Kippes de Caseros con 6 bóxers y objetivo 0;
+// Flor Caro, Brisa Farias y Sole Lescano con 1 perfume). Piso de 1 unidad: vender 1 ya cumple el
+// 100%, vender 2 da 200%, y las cantidades reales se siguen mostrando tal cual. Solo aplica cuando
+// el objetivo es 0 o vacío (en septiembre no hay ningún objetivo fraccionario, todos son 0 exacto).
+const SPRINT_UNIDADES=['Perfumes','Boxer'];
+const objetivoEfectivo=(field,obj)=>SPRINT_UNIDADES.includes(field)&&!(obj>0)?1:obj;
 const state={tables:{},local:'all',scope:'home',category:'liga',storeCategory:'sprint',user:null,guest:false,supervisor:false};
 const THEME_KEY='vdhRankingTheme';
 const $=id=>document.getElementById(id);const qa=sel=>[...document.querySelectorAll(sel)];
@@ -484,7 +493,7 @@ function umbralTicketsDe(abiertos){return abiertos?Math.max(1,Math.ceil(MIN_TICK
 function ratioStandings(weekKey,field){
   const realKey=field?`${field} real`:'Venta real',objKey=field?`${field} obj`:'Venta obj';
   const list=weekRowsPersonas(weekKey).map(row=>{
-    const real=num(row,realKey),obj=num(row,objKey),info=infoDiasDe(weekKey,row.Vendedor);
+    const real=num(row,realKey),obj=objetivoEfectivo(field,num(row,objKey)),info=infoDiasDe(weekKey,row.Vendedor);
     // Sin venta en toda la semana no hay ningún % inflado que corregir: la regla está para que un
     // día suelto no se convierta en un 216%, no para etiquetar al que todavía no vendió. Sin esta
     // línea, el lunes (con un solo día cargado) media lista aparecía como "no clasifica" sin que
@@ -962,7 +971,7 @@ function aggregateStoreMetricForWeek(weekKey,field){
 // mayor venta/unidad real y, si también empata, alfabético.
 function storeRatioStandings(weekKey,field){
   const agg=aggregateStoreMetricForWeek(weekKey,field);
-  const list=Object.entries(agg).map(([local,g])=>({local,real:g.real,obj:g.obj,ratio:g.obj?g.real/g.obj*100:null})).filter(p=>p.ratio!==null);
+  const list=Object.entries(agg).map(([local,g])=>{const obj=objetivoEfectivo(field,g.obj);return{local,real:g.real,obj,ratio:obj?g.real/obj*100:null}}).filter(p=>p.ratio!==null);
   list.sort((a,b)=>(b.ratio-a.ratio)||(b.real-a.real)||String(a.local).localeCompare(String(b.local),'es'));
   return list;
 }
@@ -1003,8 +1012,8 @@ function buildStoreCategoryList(field){
   const currentKey=weekKeys[weekKeys.length-1];
   const currentAgg=aggregateStoreMetricForWeek(currentKey,field);
   const list=Object.keys(currentAgg).map(local=>{
-    const cur=currentAgg[local];
-    return{local,real:cur.real,obj:cur.obj,ratio:cur.obj?cur.real/cur.obj*100:null};
+    const cur=currentAgg[local],obj=objetivoEfectivo(field,cur.obj);
+    return{local,real:cur.real,obj,ratio:obj?cur.real/obj*100:null};
   });
   return{list,currentKey};
 }
