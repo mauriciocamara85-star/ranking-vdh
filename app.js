@@ -115,6 +115,9 @@ function weekKeyOrder(key){const [mes,semana]=key.split('|');return MONTH_ORDER.
 // famaStoreCard, así que el fix se propaga solo a las 3 sin tocarlas una por una.
 function medalFor(i){if(i>2)return'';const tier=i===0?'gold':i===1?'silver':'bronze';return icon('medal',`svg-icon medal-${tier}`)}
 function rankRowClass(i){return i===0?'top1':i===1?'top2':i===2?'top3':''}
+// Una persona que cubrió dos locales tiene local "A + B": pertenece a los dos. Comparar con === la
+// dejaba afuera del filtro de cualquiera de ellos y sin su tarjeta personal.
+function esDelLocal(p,local){return String(p?.local??'').split(' + ').includes(local)}
 function capForDisplay(list){return state.supervisor?list:list.slice(0,TOP_PUBLIC)}
 
 // Iconos SVG (estilo Lucide) para el barrido total de emojis de esta vuelta. "store"/"award" ya
@@ -693,7 +696,10 @@ function buildChampionship(){
   if(!month)return{list:[],month:null,weeks:[]};
   const weeks=weeksOfMonth(month);
   const totals={};
-  const ensure=(local,name)=>{const key=`${local}|${name}`;if(!totals[key])totals[key]={local,name,main:0,sprint:0,breakdown:{ticket:0,perfumes:0,boxer:0,pxt:0}};return totals[key]};
+  // Por NOMBRE, no por local+nombre (2026-10-02, igual que el dashboard): quien cubre dos locales una
+  // semana queda con el local fundido "A + B" esa semana y con uno solo las otras, y con la clave vieja
+  // sus puntos del mes se partían en dos filas. `locales` junta todos los que pisó en el mes.
+  const ensure=(local,name)=>{if(!totals[name])totals[name]={name,locales:new Set(),main:0,sprint:0,breakdown:{ticket:0,perfumes:0,boxer:0,pxt:0}};String(local||'').split(' + ').forEach(l=>{if(l)totals[name].locales.add(l)});return totals[name]};
   weeks.forEach(weekKey=>{
     // Top 15, no 10 — MAIN_POINTS tiene 15 puestos justamente para esto (ver comentario en su
     // definición). buildStoreChampionship (locales) usa este mismo array pero con slice(0,10):
@@ -709,7 +715,7 @@ function buildChampionship(){
       });
     });
   });
-  const list=Object.values(totals).map(e=>({...e,total:e.main+e.sprint}));
+  const list=Object.values(totals).map(e=>({...e,local:[...e.locales].sort().join(' + '),total:e.main+e.sprint}));
   list.sort((a,b)=>(b.total-a.total)||(b.main-a.main)||String(a.name).localeCompare(String(b.name),'es'));
   return{list,month,weeks};
 }
@@ -719,7 +725,7 @@ function renderChampionship(){
   $('rankPeriod').textContent=`${month} · ${weeks.length} fecha${weeks.length===1?'':'s'} corrida${weeks.length===1?'':'s'}`;
   if(!list.length){showEmpty('Sin puntos cargados este mes todavía.');return}
 
-  const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
+  const filtered=state.local==='all'?list:list.filter(p=>esDelLocal(p,state.local));
   const visible=capForDisplay(filtered);
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
@@ -733,7 +739,7 @@ function renderChampionship(){
 
   renderPrivateCard({
     list,
-    match:p=>state.user&&p.local===state.user.local&&p.name===state.user.vendedor,
+    match:p=>state.user&&esDelLocal(p,state.user.local)&&p.name===state.user.vendedor,
     progressText:p=>`${number(p.total)} pts acumulados este mes`,
     leaderText:'¡Vas primero en el Gran Premio del mes!',
     microText:(p,above)=>{
@@ -751,8 +757,11 @@ function buildMejoraListFor(currentKey,prevKey){
   const rows=[...weekRowsPersonas(currentKey),...(prevKey?weekRowsPersonas(prevKey):[])];
   const byPerson={};
   rows.forEach(row=>{
-    const key=`${row.Local}|${row.Vendedor}`,weekKey=weekKeyOf(row);
+    // Por nombre: si cubrió dos locales una semana y uno la otra, con local+nombre eran dos personas
+    // y la mejora no se podía calcular. El local que se muestra es el de la semana actual.
+    const key=row.Vendedor,weekKey=weekKeyOf(row);
     if(!byPerson[key])byPerson[key]={local:row.Local,name:row.Vendedor};
+    if(weekKey===currentKey)byPerson[key].local=row.Local;
     if(weekKey===currentKey)byPerson[key].actual=row;
     if(prevKey&&weekKey===prevKey)byPerson[key].previo=row;
   });
@@ -795,7 +804,7 @@ function renderSellersMejora(){
   $('rankPeriod').textContent=`Fecha ${semana} de ${mes}`;
   if(!list.length){showEmpty('Sin vendedores para este filtro.');return}
 
-  const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
+  const filtered=state.local==='all'?list:list.filter(p=>esDelLocal(p,state.local));
   const clasificados=filtered.filter(estaClasificado);
   const visible=visiblesConNC(clasificados,filtered);
   $('rankList').innerHTML=visible.map(p=>{
@@ -814,7 +823,7 @@ function renderSellersMejora(){
 
   renderPrivateCard({
     list,
-    match:p=>state.user&&p.local===state.user.local&&p.name===state.user.vendedor,
+    match:p=>state.user&&esDelLocal(p,state.user.local)&&p.name===state.user.vendedor,
     progressText:p=>p.actualRatio!==null?`${percent(p.actualRatio)} del objetivo semanal alcanzado`:'Sin objetivo cargado',
     microText:(p,above)=>{
       if(p.mejora===null||above.mejora===null)return null;
@@ -848,7 +857,7 @@ function renderSellersCategory(category){
   $('rankPeriod').textContent=`Fecha ${semana} de ${mes}`;
   if(!list.length){showEmpty('Sin datos para este filtro.');return}
 
-  const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
+  const filtered=state.local==='all'?list:list.filter(p=>esDelLocal(p,state.local));
   const clasificados=filtered.filter(estaClasificado);
   const visible=visiblesConNC(clasificados,filtered);
   const isSprint=category!=='liga';
@@ -868,7 +877,7 @@ function renderSellersCategory(category){
 
   renderPrivateCard({
     list,
-    match:p=>state.user&&p.local===state.user.local&&p.name===state.user.vendedor,
+    match:p=>state.user&&esDelLocal(p,state.user.local)&&p.name===state.user.vendedor,
     progressText:p=>`${percent(p.ratio)} ${cfg.progressLabel||`del objetivo de ${cfg.label.toLowerCase()} alcanzado`}`,
     microText:(p,above)=>{
       const pts=above.ratio-p.ratio;
@@ -1043,7 +1052,7 @@ function renderStores(){
   if(!rawList.length){showEmpty('Sin locales para este filtro.');return}
 
   const list=sortStoreList(rawList);
-  const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
+  const filtered=state.local==='all'?list:list.filter(p=>esDelLocal(p,state.local));
   const visible=capForDisplay(filtered);
   // Mismo layout que Liga VDH del lado de Vendedores: arriba "% (real/obj)" en una sola línea,
   // abajo la pastillita "+X pts GP" — antes acá arriba iba el % solo y abajo el real/obj, con
@@ -1091,7 +1100,7 @@ function renderStoreChampionship(){
   $('rankPeriod').textContent=`${month} · ${weeks.length} fecha${weeks.length===1?'':'s'} corrida${weeks.length===1?'':'s'}`;
   if(!list.length){showEmpty('Sin puntos cargados este mes todavía.');return}
 
-  const filtered=state.local==='all'?list:list.filter(p=>p.local===state.local);
+  const filtered=state.local==='all'?list:list.filter(p=>esDelLocal(p,state.local));
   const visible=capForDisplay(filtered);
   $('rankList').innerHTML=visible.map(p=>{
     const i=list.indexOf(p);
@@ -1163,7 +1172,7 @@ function renderHome(){
     qa('.home-top3-card,.home-cta').forEach(el=>el.addEventListener('click',()=>{state.scope=el.dataset.jump;render()}));
     renderPrivateCard({
       list:sellers,
-      match:p=>state.user&&p.local===state.user.local&&p.name===state.user.vendedor,
+      match:p=>state.user&&esDelLocal(p,state.user.local)&&p.name===state.user.vendedor,
       progressText:p=>`${percent(p.ratio)} del objetivo semanal alcanzado`,
       microText:(p,above)=>{
         const pts=above.ratio-p.ratio;
@@ -1205,7 +1214,7 @@ function renderHome(){
 
   renderPrivateCard({
     list:sellers,
-    match:p=>state.user&&p.local===state.user.local&&p.name===state.user.vendedor,
+    match:p=>state.user&&esDelLocal(p,state.user.local)&&p.name===state.user.vendedor,
     progressText:p=>`${percent(p.ratio)} del objetivo semanal alcanzado`,
     microText:(p,above)=>{
       const pts=above.ratio-p.ratio;
